@@ -2,6 +2,7 @@ package backend.backend.controller;
 
 import backend.backend.model.LoanApplication;
 import backend.backend.model.LoanRepayment;
+import backend.backend.model.LoanSummaryDTO;
 import backend.backend.repository.LoanApplicationRepository;
 import backend.backend.repository.LoanRepaymentRepository;
 import backend.backend.repository.UserRepository;
@@ -33,7 +34,7 @@ public class LoanRepayController {
         String username = userDetails.getUsername();
         return loanApplicationRepository.findByUsernameAndStatus(username, "APPROVED");
     }
-    // Repay loan
+
     @PostMapping("/repay/{loanId}")
     public LoanRepayment repayLoan(@PathVariable Long loanId, @RequestBody Map<String, Object> body) {
         double amount = Double.parseDouble(body.get("amount").toString());
@@ -61,16 +62,12 @@ public class LoanRepayController {
 
         return ResponseEntity.ok(repayments);
     }
-   /* @GetMapping("/admin/repayments")
-    @PreAuthorize("hasRole('ADMIN')")
-    public List<LoanRepayment> getRepayments(@AuthenticationPrincipal CustomUserDetails userDetails)
-    {
 
-        if(userDetails.getUsername().equals("ADMIN123"))
-          return loanRepaymentRepository.findAll();
-        else
-            return loanRepaymentRepository.findByUsernameOrderByPaymentDateDesc(userDetails.getUsername());
+    @GetMapping("/summary/{loanId}")
+    public LoanSummaryDTO getSummary(@PathVariable Long loanId) {
+        return loanService.getLoanSummary(loanId);
+    }
 
-    }*/
+
 
 }

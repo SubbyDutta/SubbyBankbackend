@@ -1,9 +1,8 @@
 package backend.backend.model;
 
-
-
 import jakarta.persistence.*;
 import lombok.Data;
+import java.time.LocalDateTime;
 
 @Entity
 @Table(name = "users")
@@ -17,7 +16,8 @@ public class User {
     private String username;
 
     @Column(nullable = false)
-    private String password; // store bcrypt hashed password
+    private String password;
+
     @Column(nullable = false)
     private String email;
 
@@ -28,6 +28,8 @@ public class User {
     private String role;
 
 
+    private int creditScore;
 
 
+    private LocalDateTime updatedAt = LocalDateTime.now();
 }

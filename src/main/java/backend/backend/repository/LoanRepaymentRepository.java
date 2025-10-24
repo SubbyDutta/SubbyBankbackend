@@ -10,6 +10,9 @@ import java.util.List;
 public interface LoanRepaymentRepository extends JpaRepository<LoanRepayment, Long> {
     List<LoanRepayment> findByUsernameOrderByPaymentDateDesc(String username);
     List<LoanRepayment> findByLoanIdOrderByPaymentDateDesc(Long loanId);
+    List<LoanRepayment> findByLoanIdOrderByPaymentDateAsc(Long loanId);
+
+    List<LoanRepayment> findByUsername(String username);
     void deleteByLoanId(Long loanId);
 
 }

@@ -8,9 +8,7 @@ import backend.backend.repository.BankAccountRepository;
 import backend.backend.repository.UserRepository;
 import backend.backend.requests.AccountRequest;
 import backend.backend.security.CustomUserDetails;
-import backend.backend.service.AccountService;
-import backend.backend.service.BankService;
-import backend.backend.service.TransactionService;
+import backend.backend.service.*;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -18,6 +16,7 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 import backend.backend.service.BankService;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.util.List;
 import java.util.Map;
@@ -29,9 +28,10 @@ public class AccountController {
     private final UserRepository userRepo;
     private final BankAccountRepository bankRepo;
     private final BankService bankService;
+    private final UserService userService;
 
 
-    public AccountController(AccountService accountService, TransactionService transactionService, UserRepository userRepo, BankAccountRepository bankRepo, BankService bankService) {
+    public AccountController(AccountService accountService, TransactionService transactionService, UserRepository userRepo, BankAccountRepository bankRepo, BankService bankService, UserService userService) {
         this.accountService = accountService;
 
         this.userRepo = userRepo;
@@ -39,6 +39,7 @@ public class AccountController {
 
 
         this.bankService = bankService;
+        this.userService = userService;
     }
     @GetMapping("/me/account")
     public ResponseEntity<Map<String, String>> getMyAccount(@AuthenticationPrincipal CustomUserDetails userDetails) {
@@ -57,6 +58,17 @@ public class AccountController {
         double balance = accountService.getBalance(userId);
         return ResponseEntity.ok("Your current balance is ₹" + balance);
     }
+
+    @PreAuthorize("isAuthenticated()")
+    @GetMapping("/creditscore")
+    public Map<String, Object> getCreditScore(@AuthenticationPrincipal CustomUserDetails userDetails) {
+        if (userDetails == null) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Unauthorized");
+        }
+        int score = userService.fetchCreditScore(userDetails.getUsername());
+        return Map.of("creditScore", score);
+    }
+
 
     //  Get all transactions
     @GetMapping("/transactions")

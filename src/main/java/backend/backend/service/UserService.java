@@ -9,6 +9,7 @@ import backend.backend.repository.UserRepository;
 import backend.backend.requests.AccountDetailsResponse;
 import backend.backend.requests.TransactionResponse;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import java.util.List;
@@ -75,7 +76,12 @@ public class UserService {
         }
         return null;
     }
-    
+    public int fetchCreditScore(String username)
+    {
+        User user= userRepo.findByUsername(username).orElseThrow(()->new UsernameNotFoundException("user not found"));
+        int score=user.getCreditScore();
+        return score;
+    }
 
 
 

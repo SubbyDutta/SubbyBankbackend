@@ -8,7 +8,7 @@ import java.util.Date;
 
 @Component
 public class JwtUtil {
-    private static final  String SECRET_KEY = System.getenv("JWT_SECRET");
+    private static final  String SECRET_KEY = "vhjbhejeuihurghugherughdkugfhhkghdukgherugg";
 
 
 

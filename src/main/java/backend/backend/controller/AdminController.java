@@ -21,25 +21,25 @@ public class AdminController {
     private UserService userService;
     @Autowired private BankAccountRepository bankRepo;
 
-    // Get all users
+
     @GetMapping("/users")
     public List<User> getAllUsers() {
         return userService.getAllUsers();
     }
 
-    //  Get user by ID
+
     @GetMapping("/user/{id}")
     public User getUser(@PathVariable Long id) {
         return userService.getUserById(id);
     }
 
-    //  Update user info
+
     @PutMapping("/user/{id}")
     public User updateUser(@PathVariable Long id, @RequestBody User updated) {
         return userService.updateUser(id, updated);
     }
 
-    // Delete user
+
     @DeleteMapping("/user/{id}")
     public String deleteUser(@PathVariable Long id) {
         userService.deleteUser(id);
@@ -47,7 +47,7 @@ public class AdminController {
         return "User deleted";
     }
 
-    //  Block/unblock user bank account
+
     @PatchMapping("/block/{id}")
     public String toggleBlock(@PathVariable Long id) {
         BankAccount acc = bankRepo.findById(id).orElseThrow(() -> new RuntimeException("Bank account not found for user ID: " + id));
@@ -56,14 +56,14 @@ public class AdminController {
         return acc.isBlocked() ? "Account blocked" : "Account unblocked";
     }
 
-    //  View user balance
+
     @GetMapping("/balance/{id}")
     public double getBalance(@PathVariable Long id) {
         BankAccount acc = bankRepo.findByUserId(id).orElseThrow(() -> new RuntimeException("Bank account not found for user ID: " + id));
         return acc.getBalance();
     }
 
-    // Update user balance
+
     @PatchMapping("/balance/")
 
     public ResponseEntity<?> updateUserBalance(@RequestBody BalanceUpdateRequest request) {

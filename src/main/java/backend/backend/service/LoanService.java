@@ -10,14 +10,18 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
 
 import java.time.LocalDateTime;
+import java.time.YearMonth;
 import java.util.List;
 import java.util.Map;
 
 @Service
 public class LoanService {
-
+    private static final int TENURE_MONTHS = 6;
     @Autowired
     private LoanEligibilityRequestRepository eligibilityRepo;
+    @Autowired
+    private BankPoolService bankPoolService;
+
     @Autowired private LoanApplicationRepository applicationRepo;
     @Autowired private BankAccountRepository bankRepo;
     @Autowired private EmailService emailService;
@@ -25,20 +29,22 @@ public class LoanService {
     @Autowired private UserRepository userRepository;
     @Autowired private TransactionRepository txRepo;
     @Autowired private LoanRepaymentRepository repaymentRepository;
+    @Autowired private BankPoolRepository bankBalanceRepository;
 
     @Value("${loan.check.url}")
     private String loanCheckUrl;
 
 
 
-    // Check loan eligibility using ML
-    public LoanEligibilityRequest checkEligibility(String username, double income, String pan, String adhar, double creditScore, double requestedAmount) {
+
+    public LoanEligibilityRequest checkEligibility(String username, double income,  double requestedAmount) {
         LoanEligibilityRequest req = new LoanEligibilityRequest();
         req.setUsername(username);
         req.setIncome(income);
-        req.setPan(pan);
-        req.setAdhar(adhar);
-        req.setCreditScore(creditScore);
+        req.setPan(bankRepo.findByUserUsername(username).orElseThrow(()->new RuntimeException("Not Found")).getPan());
+        req.setAdhar(bankRepo.findByUserUsername(username).orElseThrow(()->new RuntimeException("Not Found")).getAdhar());
+        req.setCreditScore(userRepository.findByUsername(username).orElseThrow(()->new RuntimeException("not found")).getCreditScore());
+
         req.setRequestedAmount(requestedAmount);
 
         User user = userRepository.findByUsername(username)
@@ -59,9 +65,9 @@ public class LoanService {
 
         Map<String, Object> payload = Map.of(
                 "income", income,
-                "pan", pan,
-                "adhar", adhar,
-                "credit_score", creditScore,
+                "pan", req.getPan(),
+                "adhar", req.getAdhar(),
+                "credit_score", req.getCreditScore(),
                 "requested_amount", requestedAmount,
                 "balance", balance,
                 "avg_transaction", avgAmount
@@ -70,7 +76,25 @@ public class LoanService {
         Map<String, Object> response = restTemplate.postForObject(loanCheckUrl, payload, Map.class);
         req.setEligible((Boolean) response.get("eligible"));
         req.setProbability(((Number) response.get("probability")).doubleValue());
+        int amount_to_pay=0;
+        int rate=0;
 
+        if(req.getCreditScore()>=750 )
+        {
+           rate= 10;
+        }else if(req.getCreditScore()>=700)
+        {
+            rate=15;
+        }else if(req.getCreditScore()>=650)
+        {
+            rate=20;
+        }else if(req.getCreditScore()>=500)
+        {
+            rate=25;
+        }
+
+        amount_to_pay= (int) ((int) (requestedAmount*rate/100)+requestedAmount);
+       req.setAmount_to_pay(amount_to_pay);
         return eligibilityRepo.save(req);
     }
 
@@ -109,11 +133,12 @@ public class LoanService {
         LoanApplication loan = new LoanApplication();
         loan.setUsername(eligibility.getUsername());
         loan.setAmount(eligibility.getRequestedAmount());
+        loan.setDue_amount(eligibility.getAmount_to_pay());
         loan.setStatus("PENDING");
         loan.setApproved(false);
         return applicationRepo.save(loan);
     }
-    // dmin approves loan and credits user's bank account
+
     @Transactional
     public LoanApplication approveLoan(Long loanId) {
         LoanApplication loan = applicationRepo.findById(loanId)
@@ -125,7 +150,12 @@ public class LoanService {
 
         loan.setApproved(true);
         loan.setStatus("APPROVED");
+        loan.setApprovedAt(LocalDateTime.now());
+
+        loan.setMonthlyEmi(loan.getDue_amount() / 6);
+        loan.setNextDueDate(LocalDateTime.now().plusMonths(1));
         applicationRepo.save(loan);
+        bankPoolService.deduct(loan.getAmount());
 
         // Credit money to user account
         BankAccount account = bankRepo.findByUserUsername(loan.getUsername())
@@ -151,10 +181,14 @@ public class LoanService {
         r.setLoanId(loanId);
         r.setUsername(loan.getUsername());
         r.setAmountPaid(0);
-        r.setRemainingBalance(loan.getAmount());
+        r.setRemainingBalance(loan.getDue_amount());
 
         r.setPaymentDate(LocalDateTime.now());
         repaymentRepo.save(r);
+
+        //deduct from bank
+        BankPool bank=  new BankPool();
+
 
 
         return loan;
@@ -175,28 +209,28 @@ public class LoanService {
 
     @Transactional
     public LoanRepayment repayLoan(Long loanId, double amount) {
+
         LoanApplication loan = applicationRepo.findById(loanId)
                 .orElseThrow(() -> new RuntimeException("Loan not found"));
 
-        if (!loan.isApproved()) {
+        if (!loan.getStatus().equals("APPROVED")) {
             throw new RuntimeException("Loan not approved yet");
         }
-        if(amount<=0)
+
+        User user = userRepository.findByUsername(loan.getUsername())
+                .orElseThrow(() -> new RuntimeException("User not found"));
+
+        double remaining = loan.getDue_amount();
+
+        List<LoanRepayment> pastPayments = repaymentRepo.findByLoanIdOrderByPaymentDateDesc(loanId);
+        double totalPaid = pastPayments.stream().mapToDouble(LoanRepayment::getAmountPaid).sum();
+        remaining = remaining - totalPaid;
+        if(amount<loan.getAmount()/6)
         {
-            throw new IllegalStateException("amount can not be zero or negative");
+            throw new RuntimeException("cant pay less");
         }
-
-        double totalPaid = repaymentRepo.findByLoanIdOrderByPaymentDateDesc(loanId)
-                .stream()
-                .mapToDouble(LoanRepayment::getAmountPaid)
-                .sum();
-
-        double remaining = loan.getAmount() - totalPaid;
-
-
-
         if (amount > remaining) {
-            throw new RuntimeException("Repayment exceeds remaining balance. You can only pay ₹" + remaining);
+            throw new RuntimeException("You are trying to pay more than owed");
         }
 
         BankAccount account = bankRepo.findByUserUsername(loan.getUsername())
@@ -206,26 +240,121 @@ public class LoanService {
             throw new RuntimeException("Insufficient balance");
         }
 
+        // Deduct from balance
         account.setBalance(account.getBalance() - amount);
         bankRepo.save(account);
 
+
+        LocalDateTime now = LocalDateTime.now();
+
+        // Full repayment within first <10 days → no credit boost
+        if (remaining - amount <= 0 && loan.getApprovedAt().plusDays(10).isBefore(now)) {
+            user.setCreditScore(Math.min(900, user.getCreditScore() + 20));
+        }
+        // Regular on-time EMI
+        else if (now.isBefore(loan.getNextDueDate()) || now.isEqual(loan.getNextDueDate())) {
+            user.setCreditScore(Math.min(900, user.getCreditScore() + 6));
+        }
+        // Late payment
+        else {
+            user.setCreditScore(Math.max(300, user.getCreditScore() - 12));
+        }
+        userRepository.save(user);
+
+        // Record repayment
         LoanRepayment repayment = new LoanRepayment();
         repayment.setLoanId(loanId);
         repayment.setUsername(loan.getUsername());
-        repayment.setAmountPaid(amount+totalPaid);
-        repayment.setPaymentDate(LocalDateTime.now());
+        repayment.setAmountPaid(amount);
+        repayment.setPaymentDate(now);
         repayment.setRemainingBalance(remaining - amount);
+
+        repaymentRepo.save(repayment);
+        bankPoolService.add(amount);
+        // Record transaction
+        Transaction tx = new Transaction();
+        tx.setSenderAccount(account.getAccountNumber());
+        tx.setReceiverAccount("BANK");
+        tx.setAmount(amount);
+        tx.setBalance(account.getBalance());
+        tx.setTimestamp(LocalDateTime.now());
+        tx.setFraud_probability(0.0);
+        tx.setIs_fraud(0);
+        tx.setIsHighRisk(0);
+        tx.setIsForeign(0);
+        tx.setUserId(account.getUser().getId().intValue());
+        txRepo.save(tx);
+
+        // Update next due date and months remaining
         if (remaining - amount <= 0) {
             loan.setStatus("PAID");
-            applicationRepo.save(loan);
-
-            // 🧹 Delete all repayment records for this loan
-            repaymentRepo.deleteByLoanId(loanId);
+            loan.setMonthsRemaining(0);
         } else {
-            repaymentRepo.save(repayment);
+            loan.setMonthsRemaining(loan.getMonthsRemaining() - 1);
+            loan.setNextDueDate(loan.getNextDueDate().plusMonths(1));
         }
-        return  repayment;
+
+        applicationRepo.save(loan);
+
+        return repayment;
     }
+
+
+
+
+    public LoanSummaryDTO getLoanSummary(Long loanId) {
+        LoanApplication loan = applicationRepo.findById(loanId)
+                .orElseThrow(() -> new RuntimeException("Loan not found"));
+
+        List<LoanRepayment> payments = repaymentRepo.findByLoanIdOrderByPaymentDateDesc(loanId);
+        double paid = payments.stream().mapToDouble(LoanRepayment::getAmountPaid).sum();
+        double remaining = loan.getDue_amount() - paid;
+
+
+        return new LoanSummaryDTO(
+                loan.getId(),
+                loan.getAmount(),
+                remaining,
+                loan.getMonthlyEmi(),
+                loan.getNextDueDate(),
+                loan.getMonthsRemaining()
+
+
+        );
+    }
+
+
+
+    private double totalPaid(Long loanId) {
+        return repaymentRepo.findByLoanIdOrderByPaymentDateDesc(loanId)
+                .stream()
+                .mapToDouble(LoanRepayment::getAmountPaid)
+                .sum();
+    }
+
+    private int monthsBetween(LocalDateTime start, LocalDateTime end) {
+        if (end.isBefore(start)) return 0;
+        int months = (end.getYear() - start.getYear()) * 12 + (end.getMonthValue() - start.getMonthValue());
+        // if day-of-month in end is before approval’s day, treat as not completed the current month
+        if (end.getDayOfMonth() < start.getDayOfMonth()) months = Math.max(months - 1, 0);
+        return months;
+    }
+
+    private LocalDateTime dueDateForInstallment(LocalDateTime approvedAt, int installmentNo) {
+        // installmentNo is 1..TENURE_MONTHS
+        LocalDateTime base = approvedAt.plusMonths(installmentNo);
+        // Keep day-of-month semantics: if month shorter, use month-end
+        YearMonth ym = YearMonth.from(base);
+        int dom = Math.min(approvedAt.getDayOfMonth(), ym.lengthOfMonth());
+        return LocalDateTime.of(ym.getYear(), ym.getMonth(), dom, approvedAt.getHour(), approvedAt.getMinute(), approvedAt.getSecond());
+    }
+
+    private int clampCredit(int v) {
+        if (v < 300) return 300;
+        if (v > 900) return 900;
+        return v;
+    }
+
 
 
 

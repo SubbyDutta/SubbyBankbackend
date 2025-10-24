@@ -18,6 +18,7 @@ public class LoanEligibilityRequest {
     private String adhar;
     private double creditScore;
     private double requestedAmount;
+    private double amount_to_pay;
     private double balance;
     private double avg_transaction;
 
