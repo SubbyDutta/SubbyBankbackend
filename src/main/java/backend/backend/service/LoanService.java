@@ -173,7 +173,7 @@ public class LoanService {
     @Autowired
     private LoanRepaymentRepository repaymentRepo;
 
-    @Transactional
+     @Transactional
     public LoanRepayment repayLoan(Long loanId, double amount) {
         LoanApplication loan = applicationRepo.findById(loanId)
                 .orElseThrow(() -> new RuntimeException("Loan not found"));
@@ -181,9 +181,9 @@ public class LoanService {
         if (!loan.isApproved()) {
             throw new RuntimeException("Loan not approved yet");
         }
-        if(amount<=0)
-        {
-            throw new IllegalStateException("amount can not be zero or negative");
+
+        if (amount <= 0) {
+            throw new IllegalStateException("Amount cannot be zero or negative");
         }
 
         double totalPaid = repaymentRepo.findByLoanIdOrderByPaymentDateDesc(loanId)
@@ -192,8 +192,6 @@ public class LoanService {
                 .sum();
 
         double remaining = loan.getAmount() - totalPaid;
-
-
 
         if (amount > remaining) {
             throw new RuntimeException("Repayment exceeds remaining balance. You can only pay ₹" + remaining);
@@ -209,23 +207,38 @@ public class LoanService {
         account.setBalance(account.getBalance() - amount);
         bankRepo.save(account);
 
+        Transaction tx = new Transaction();
+        tx.setSenderAccount(account.getAccountNumber());
+        tx.setReceiverAccount("BANK");
+        tx.setAmount(amount);
+        tx.setBalance(account.getBalance());
+        tx.setTimestamp(LocalDateTime.now());
+        tx.setFraud_probability(0);
+        tx.setIs_fraud(0);
+        tx.setIsHighRisk(0);
+        tx.setIsForeign(0);
+        txRepo.save(tx);
+
         LoanRepayment repayment = new LoanRepayment();
         repayment.setLoanId(loanId);
         repayment.setUsername(loan.getUsername());
-        repayment.setAmountPaid(amount+totalPaid);
+        repayment.setAmountPaid(amount); // ✅ fixed here
         repayment.setPaymentDate(LocalDateTime.now());
         repayment.setRemainingBalance(remaining - amount);
+
         if (remaining - amount <= 0) {
             loan.setStatus("PAID");
             applicationRepo.save(loan);
 
-            // 🧹 Delete all repayment records for this loan
-            repaymentRepo.deleteByLoanId(loanId);
+            // Optional: keep history instead of deleting
+            repaymentRepo.save(repayment);
         } else {
             repaymentRepo.save(repayment);
         }
-        return  repayment;
+
+        return repayment;
     }
+
 
 
 
