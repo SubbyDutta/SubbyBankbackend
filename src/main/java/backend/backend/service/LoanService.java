@@ -79,22 +79,22 @@ public class LoanService {
         int amount_to_pay=0;
         int rate=0;
 
-        if(req.getCreditScore()>=800 )
-        {
-           rate= 8;
-        }else if(req.getCreditScore()>=750)
-        {
-            rate=10;
-        }else if(req.getCreditScore()>=700)
-        {
-            rate=15;
-        }else if(req.getCreditScore()>=600)
-        {
-            rate=20;
-        }else if(req.getCreditScore()>=300)
-        {
-            rate=30;
+              if (req.getCreditScore() >= 850) {
+            rate = 7; // Exceptional credit — best possible rate
+        } else if (req.getCreditScore() >= 800) {
+            rate = 10; // Excellent credit
+        } else if (req.getCreditScore() >= 750) {
+            rate = 14; // Very good credit
+        } else if (req.getCreditScore() >= 700) {
+            rate = 17; // Good but slightly risky
+        } else if (req.getCreditScore() >= 650) {
+            rate = 20; // Fair credit — higher risk
+        } else if (req.getCreditScore() >= 600) {
+            rate = 23; // Poor credit — borderline approval
+        } else {
+            rate = 28; // Very poor credit — near rejection zone
         }
+
 
         amount_to_pay= (int) ((int) (requestedAmount*rate/100)+requestedAmount);
        req.setAmount_to_pay(amount_to_pay);
