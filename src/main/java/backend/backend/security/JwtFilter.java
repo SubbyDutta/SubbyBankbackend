@@ -27,7 +27,7 @@ public class JwtFilter extends OncePerRequestFilter {
         this.userDetailsService = userDetailsService;
     }
 
-    // Skip JWT filter for public endpoints and preflight OPTIONS
+    // Skip JWT filter for public endpoints and OPTIONS requests
     @Override
     protected boolean shouldNotFilter(HttpServletRequest request) {
         String path = request.getRequestURI();
