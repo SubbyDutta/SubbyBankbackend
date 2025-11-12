@@ -28,7 +28,7 @@ public class User {
     private String role;
 
 
-    private int creditScore;
+    private int creditScore=650;
 
 
     private LocalDateTime updatedAt = LocalDateTime.now();
