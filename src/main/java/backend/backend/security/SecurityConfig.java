@@ -38,7 +38,7 @@ public class SecurityConfig {
             .authorizeHttpRequests(auth -> auth
                 // Public endpoints
                 .requestMatchers("/api/auth/**").permitAll()
-                // OPTIONS requests for preflight
+                // Allow OPTIONS preflight for all endpoints
                 .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                 // Protected endpoints
                 .requestMatchers("/api/user/**").authenticated()
@@ -46,7 +46,6 @@ public class SecurityConfig {
                 .requestMatchers("/api/transactions/**").hasRole("ADMIN")
                 .anyRequest().authenticated()
             )
-            // Add JWT filter before UsernamePasswordAuthenticationFilter
             .addFilterBefore(jwtFilter, UsernamePasswordAuthenticationFilter.class);
 
         return http.build();
@@ -56,7 +55,7 @@ public class SecurityConfig {
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
 
-        // For deployment, allow your frontend domain. Temporarily can use "*"
+        // Temporarily allow all origins; later restrict to your frontend
         configuration.setAllowedOrigins(List.of("*"));
         configuration.setAllowedMethods(List.of("GET","POST","PUT","PATCH","DELETE","OPTIONS"));
         configuration.setAllowedHeaders(List.of("*"));
