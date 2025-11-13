@@ -39,7 +39,7 @@ public class UserService {
         }
         user.setPassword(passwordEncoder.encode(user.getPassword()));
         user.setRole("USER");
-
+        user.setCreditScore(650);
 
         userRepo.save(user);
 
