@@ -41,6 +41,7 @@ public class UserService {
         user.setRole("USER");
         user.setCreditScore(650);
 
+
         userRepo.save(user);
 
         return "Signup successful!";
@@ -53,17 +54,44 @@ public class UserService {
         return userRepo.findById(id).orElseThrow();
     }
 
+
+
+
     public User updateUser(Long id, User updated) {
-        User user = userRepo.findById(id).orElseThrow();
+        User user = userRepo.findById(id).orElseThrow(() ->
+                new RuntimeException("User not found with ID: " + id)
+        );
+
         user.setEmail(updated.getEmail());
         user.setMobile(updated.getMobile());
         user.setRole(updated.getRole());
-        return userRepo.save(user);
+        User savedUser = userRepo.save(user);
+
+
+        BankAccount account = bankRepo.findByUserId(id).orElseThrow(()->new RuntimeException("bank accoutnot found "));
+        if (account != null) {
+            account.setUser(savedUser);
+
+            bankRepo.save(account);
+        }
+
+        return savedUser;
     }
 
+
     public void deleteUser(Long id) {
+        BankAccount account = bankRepo.findByUserId(id).orElseThrow(()->new RuntimeException("bank accoutnot found "));
+        if (account != null) {
+
+
+            bankRepo.delete(account);
+        }
+
+
+
         userRepo.deleteById(id);
     }
+
 
     // Authenticate login
     public User authenticate(String username, String password) {
