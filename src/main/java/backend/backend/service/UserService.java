@@ -56,7 +56,6 @@ public class UserService {
 
 
 
-
     public User updateUser(Long id, User updated) {
         User user = userRepo.findById(id).orElseThrow(() ->
                 new RuntimeException("User not found with ID: " + id)
@@ -68,29 +67,23 @@ public class UserService {
         User savedUser = userRepo.save(user);
 
 
-        BankAccount account = bankRepo.findByUserId(id).orElseThrow(()->new RuntimeException("bank accoutnot found "));
-        if (account != null) {
+        bankRepo.findByUserId(id).ifPresent(account -> {
             account.setUser(savedUser);
-
             bankRepo.save(account);
-        }
+        });
 
         return savedUser;
     }
 
-
     public void deleteUser(Long id) {
-        BankAccount account = bankRepo.findByUserId(id).orElseThrow(()->new RuntimeException("bank accoutnot found "));
-        if (account != null) {
 
-
+        bankRepo.findByUserId(id).ifPresent(account -> {
             bankRepo.delete(account);
-        }
-
-
+        });
 
         userRepo.deleteById(id);
     }
+
 
 
     // Authenticate login
