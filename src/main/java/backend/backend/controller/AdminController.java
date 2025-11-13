@@ -42,8 +42,9 @@ public class AdminController {
 
     @DeleteMapping("/user/{id}")
     public String deleteUser(@PathVariable Long id) {
-        userService.deleteUser(id);
         bankRepo.deleteById(id);
+        userService.deleteUser(id);
+
         return "User deleted";
     }
 
