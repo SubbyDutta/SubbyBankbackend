@@ -1,66 +1,36 @@
 package backend.backend.controller;
 
 import backend.backend.model.BankAccount;
-import backend.backend.model.PasswordResetToken;
-import backend.backend.model.Transaction;
 import backend.backend.model.User;
-import backend.backend.repository.BankAccountRepository;
 import backend.backend.repository.PasswordResetTokenRepository;
-import backend.backend.repository.TransactionRepository;
-import backend.backend.repository.UserRepository;
-import backend.backend.requests.*;
-import backend.backend.security.CustomUserDetails;
+import backend.backend.requests_response.*;
 import backend.backend.service.BankService;
-import backend.backend.service.OtpUtil;
 import backend.backend.service.UserService;
 import backend.backend.security.JwtUtil;
+import jakarta.validation.Valid;
 import lombok.Data;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.http.HttpStatus;
+import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
-import org.springframework.mail.SimpleMailMessage;
 import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.security.access.prepost.PreAuthorize;
-import org.springframework.security.core.Authentication;
-import org.springframework.security.core.annotation.AuthenticationPrincipal;
-import org.springframework.security.core.context.SecurityContextHolder;
-import org.springframework.security.core.userdetails.UserDetails;
-import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.web.bind.annotation.*;
 
-import java.security.Principal;
-import java.time.LocalDateTime;
-import java.util.List;
-import java.util.Map;
-
+@RequiredArgsConstructor
 @RestController
 @RequestMapping("/api/auth")
 public class AuthController {
 
-    private final UserRepository userRepo;
+
     private final UserService userService;
     private final JwtUtil jwtUtil;
     private final BankService bankService;
     private final PasswordEncoder passwordEncoder;
+    private final PasswordResetTokenRepository tokenRepo;
+    private final JavaMailSender mailSender;
 
 
-    @Autowired
-    private PasswordResetTokenRepository tokenRepo;
 
-    @Autowired
-    private JavaMailSender mailSender;
-
-
-    @Autowired
-    public AuthController(UserRepository userRepo, UserService userService, JwtUtil jwtUtil, BankService bankService, PasswordEncoder passwordEncoder, BankAccountRepository bankRepo, TransactionRepository txRepo, BankAccountRepository bankRepo1) {
-        this.userRepo = userRepo;
-        this.userService = userService;
-        this.jwtUtil = jwtUtil;
-        this.bankService = bankService;
-        this.passwordEncoder = passwordEncoder;
-
-    }
 
     @PostMapping("/signup")
     public String signup(@RequestBody User user) {
@@ -77,17 +47,19 @@ public class AuthController {
     }
     @PreAuthorize("hasAuthority('USER')")
     @PostMapping("/create-account")
-    public ResponseEntity<?> createBankAccount(@RequestBody AccountRequest request) {
-        User user = userRepo.findByUsername(request.getUsername())
-                .orElseThrow(() -> new RuntimeException("User not found"));
+    public ResponseEntity<?> createBankAccount(@Valid @RequestBody AccountRequest request) {
 
-        BankAccount account = bankService.createAccount(user, request.getAdhar(), request.getPan(), request.getType());
-        return ResponseEntity.ok(account);
+            User user = userService.ifUserExists(request.getUsername());
+
+            BankAccount account = bankService.createAccount(user, request.getAdhar(), request.getPan(), request.getType());
+            return ResponseEntity.ok(account);
+
     }
 
 
 
-    @PostMapping("/forgot-password")
+/// "REMOVED DUE TO MAIL SERVICE LIMIT REACHED"
+   /* @PostMapping("/forgot-password")
     public ResponseEntity<String> forgotPassword(@RequestBody  ForgotPasswordRequest request) {
         String email = request.getEmail();
 
@@ -118,9 +90,9 @@ public class AuthController {
 
 
     }
-
+/// need change
     @PostMapping("/reset-password")
-    public ResponseEntity<String> resetPassword(@RequestBody ResetPasswordRequest request) {
+    public ResponseEntity<String> resetPassword( @Valid @RequestBody ResetPasswordRequest request) {
         String email = request.getEmail();
         String otp = request.getOtp();
         String newPassword = request.getNewPassword();
@@ -142,18 +114,7 @@ public class AuthController {
         tokenRepo.delete(token);
         return ResponseEntity.ok("Password reset successful");
     }
-
-
-
-
-
-
-
-
-
-
-
-
+*/
 
     // DTOs
     @Data

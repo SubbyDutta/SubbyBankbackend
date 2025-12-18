@@ -1,100 +1,113 @@
 package backend.backend.controller;
 
-import backend.backend.model.BankAccount;
+import backend.backend.Dtos.BankAccountResponseDto;
+import backend.backend.Dtos.UserResponseDto;
 import backend.backend.model.User;
-import backend.backend.repository.BankAccountRepository;
-import backend.backend.requests.BalanceUpdateRequest;
+import backend.backend.requests_response.*;
+import backend.backend.service.AccountService;
+import backend.backend.service.BankService;
 import backend.backend.service.UserService;
-import org.springframework.beans.factory.annotation.Autowired;
+import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.List;
-
 @RestController
 @RequestMapping("/api/admin")
-
+@RequiredArgsConstructor
 public class AdminController {
 
-    @Autowired
-    private UserService userService;
-    @Autowired private BankAccountRepository bankRepo;
 
+    private final  UserService userService;
+    private final AccountService accountService;
+    private final BankService bankService;
 
+   //GET ALL USERS
     @GetMapping("/users")
-    public List<User> getAllUsers() {
-        return userService.getAllUsers();
+    @PreAuthorize("hasRole('ADMIN')")
+    public PagedResponse<UserResponseDto> getAllUsers(
+            @RequestParam(defaultValue = "0") Integer page,
+            @RequestParam(defaultValue = "10") Integer size
+    ) {
+        return userService.getAllUsers(page,size);
     }
 
 
+   //SEARCH USER BY ID
     @GetMapping("/user/{id}")
-    public User getUser(@PathVariable Long id) {
+    @PreAuthorize("hasRole('ADMIN')")
+    public UserResponseDto getUser(@PathVariable Long id) {
         return userService.getUserById(id);
     }
 
 
+  //UPDATE USER
     @PutMapping("/user/{id}")
-    public User updateUser(@PathVariable Long id, @RequestBody User updated) {
+    @PreAuthorize("hasRole('ADMIN')")
+    public UserResponseDto updateUser(@PathVariable Long id, @RequestBody User updated) {
         return userService.updateUser(id, updated);
     }
 
-
+//DELETE USER
     @DeleteMapping("/user/{id}")
+    @PreAuthorize("hasRole('ADMIN')")
     public String deleteUser(@PathVariable Long id) {
+
         userService.deleteUser(id);
-        bankRepo.deleteById(id);
+
         return "User deleted";
     }
 
-
+//TOGGLE BLOCK
+    /// need chagne
     @PatchMapping("/block/{id}")
+    @PreAuthorize("hasRole('ADMIN')")
     public String toggleBlock(@PathVariable Long id) {
-        BankAccount acc = bankRepo.findById(id).orElseThrow(() -> new RuntimeException("Bank account not found for user ID: " + id));
-        acc.setBlocked(!acc.isBlocked());
-        bankRepo.save(acc);
-        return acc.isBlocked() ? "Account blocked" : "Account unblocked";
+          boolean acc=  bankService.ToggleBlock(id);
+        return acc? "Account blocked" : "Account unblocked";
     }
 
-
+//GET BALANCE
     @GetMapping("/balance/{id}")
+    @PreAuthorize("hasRole('ADMIN')")
     public double getBalance(@PathVariable Long id) {
-        BankAccount acc = bankRepo.findByUserId(id).orElseThrow(() -> new RuntimeException("Bank account not found for user ID: " + id));
-        return acc.getBalance();
+
+        return bankService.getAccountByid(id).balance();
     }
 
+
+//GET ALL BANK ACCOUNTS
+    @GetMapping("/bankaccounts")
+    @PreAuthorize("hasRole('ADMIN')")
+    public PagedResponse<BankAccountResponseDto> getAllAccountss(
+            @RequestParam(defaultValue = "0") Integer page,
+            @RequestParam(defaultValue = "1") Integer size
+    ) {
+        return accountService.getAllAccountsPaged(page,size);
+    }
+    //UPDATE USER
 
     @PatchMapping("/balance/")
-
+    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<?> updateUserBalance(@RequestBody BalanceUpdateRequest request) {
-        BankAccount account = bankRepo.findByUserId(request.getUserId())
-                .orElseThrow(() -> new RuntimeException("Bank account not found"));
-
-        account.setBalance(request.getAmount());
-        bankRepo.save(account);
+        bankService.updateUserBalance(userService.getUserById(request.getUserId()).username(), request.getAmount());
 
         return ResponseEntity.ok("Balance updated to ₹" + request.getAmount());
     }
-    @GetMapping("/accounts")
-    public ResponseEntity<List<BankAccount>> getAllAccounts() {
-        List<BankAccount> accounts = bankRepo.findAll();
-        return ResponseEntity.ok(accounts);
-    }
+//GET BANK ACCOUNT BY ID
+
     @GetMapping("/accounts/{id}")
-    public ResponseEntity<BankAccount> getAccountById(@PathVariable Long id) {
-        return bankRepo.findByUserId(id)
-                .map(ResponseEntity::ok)
-                .orElse(ResponseEntity.notFound().build());
+    @PreAuthorize("hasRole('ADMIN')")
+    public BankAccountResponseDto getAccountById(@PathVariable Long id) {
+        return bankService.getAccountByid(id);
+
     }
 
+//DELETE BANK ACCOUTN BY ID
     @DeleteMapping("/accounts/{id}")
+    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<?> deleteAccountById(@PathVariable Long id) {
-        if (!bankRepo.existsById(id)) {
-            return ResponseEntity.status(404)
-                    .body("Bank account not found with ID: " + id);
-        }
-
-        bankRepo.deleteById(id);
+      bankService.deleteAccount(id);
         return ResponseEntity.ok("Bank account deleted successfully with ID: " + id);
     }
 

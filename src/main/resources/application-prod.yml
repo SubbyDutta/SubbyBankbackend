@@ -1,0 +1,36 @@
+spring:
+  datasource:
+    url: ${DATABASE_URL}
+    username: ${POSTGRES_USER}
+    password: ${POSTGRES_PASSWORD}
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    show-sql: false
+  cache:
+    type: redis
+  redis:
+    host: "${HOST_NAME}"
+    port: "${PORT}"
+razorpay:
+    key-id: "${RAZORPAY_KEY_ID}"
+    secret: "${RAZORPAY_SECRET}"
+
+fraud:
+    url:  "${FRAUD_ML_URL}"
+
+loan:
+    url: "${LOAN_CHECK_URL}"
+
+security:
+    jwt:
+      secret: "${JWT_SECRET}"
+      issuer: "yourbank"
+      access-token-minutes: 30
+      refresh-token-days: 30
+
+
+logging:
+  level:
+    root: INFO
+    com.yourbank: INFO

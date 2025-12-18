@@ -2,14 +2,16 @@ package backend.backend.controller;
 
 
 import backend.backend.model.BankAccount;
-import backend.backend.model.Transaction;
 import backend.backend.model.User;
 import backend.backend.repository.BankAccountRepository;
-import backend.backend.repository.UserRepository;
-import backend.backend.requests.AccountRequest;
+import backend.backend.requests_response.AccountRequest;
+import backend.backend.requests_response.PagedResponse;
+import backend.backend.Dtos.TransactionDto;
 import backend.backend.security.CustomUserDetails;
 import backend.backend.service.*;
-import org.springframework.beans.factory.annotation.Autowired;
+import jakarta.validation.Valid;
+import lombok.RequiredArgsConstructor;
+import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -18,40 +20,36 @@ import org.springframework.web.bind.annotation.*;
 import backend.backend.service.BankService;
 import org.springframework.web.server.ResponseStatusException;
 
-import java.util.List;
+import java.time.LocalDate;
 import java.util.Map;
 
+@RequiredArgsConstructor
 @RestController
 @RequestMapping("/api/user")
 public class AccountController {
     private final AccountService accountService;
-    private final UserRepository userRepo;
+
     private final BankAccountRepository bankRepo;
     private final BankService bankService;
     private final UserService userService;
+    private final TransactionService transactionService;
 
-
-    public AccountController(AccountService accountService, TransactionService transactionService, UserRepository userRepo, BankAccountRepository bankRepo, BankService bankService, UserService userService) {
-        this.accountService = accountService;
-
-        this.userRepo = userRepo;
-        this.bankRepo = bankRepo;
-
-
-        this.bankService = bankService;
-        this.userService = userService;
-    }
+    // Get Account Number
+    @PreAuthorize("hasRole('USER')")
     @GetMapping("/me/account")
-    public ResponseEntity<Map<String, String>> getMyAccount(@AuthenticationPrincipal CustomUserDetails userDetails) {
-        if (userDetails == null) return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Map.of("error", "Unauthorized"));
+    public ResponseEntity<?> getMyAccount(@AuthenticationPrincipal CustomUserDetails userDetails) {
+        if (userDetails == null)
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Map.of("error", "Unauthorized"));
         String username = userDetails.getUsername();
-        return userRepo.findByUsername(username)
-                .flatMap(u -> bankRepo.findByUserId(u.getId()))
-                .map(acc -> ResponseEntity.ok(Map.of("accountNumber", acc.getAccountNumber())))
-                .orElseGet(() -> ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of("error", "No bank account found")));
+
+        String accountNumber=accountService.getAccount(username);
+        if(accountNumber.equals("null"))
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of("error", "bank account not found"));
+        return ResponseEntity.ok(accountNumber);
     }
 
     //  Get account balance
+    @PreAuthorize("hasRole('USER')")
     @GetMapping("/balance")
     public ResponseEntity<String> getBalance(@AuthenticationPrincipal CustomUserDetails userDetails) {
         Long userId = userDetails.getUser_id() ;
@@ -59,7 +57,7 @@ public class AccountController {
         return ResponseEntity.ok("Your current balance is ₹" + balance);
     }
 
-    @PreAuthorize("isAuthenticated()")
+    @PreAuthorize("hasRole('USER')")
     @GetMapping("/creditscore")
     public Map<String, Object> getCreditScore(@AuthenticationPrincipal CustomUserDetails userDetails) {
         if (userDetails == null) {
@@ -71,27 +69,38 @@ public class AccountController {
 
 
     //  Get all transactions
-    @GetMapping("/transactions")
-    public ResponseEntity<List<Transaction>> getTransactions(@AuthenticationPrincipal CustomUserDetails userDetails) {
-        Long userId = userDetails.getUser_id();
-        List<Transaction> transactions = accountService.getTransactionById(userId.intValue());
-        return ResponseEntity.ok(transactions);
+    @PreAuthorize("hasRole('USER')")
+    @GetMapping("/{username}/transactions")
+    public PagedResponse<TransactionDto> getUserTransactions(
+            @PathVariable String username,
+            @RequestParam(defaultValue = "0") Integer page,
+            @RequestParam(defaultValue = "5") Integer size,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to,
+            @RequestParam(required = false) Double minAmount,
+            @RequestParam(required = false) Double maxAmount
+    ) {
+        return transactionService.getUserTransactionsFiltered(
+                username, page, size, from, to, minAmount, maxAmount
+        );
     }
 
+
+    //create Bank Account
+    @PreAuthorize("isAuthenticated()")
     @PostMapping("/create-account")
-    public ResponseEntity<?> createBankAccount(@RequestBody AccountRequest request) {
+    public ResponseEntity<?> createBankAccount(@Valid @RequestBody AccountRequest request) {
         try {
-            User user = userRepo.findByUsername(request.getUsername())
-                    .orElseThrow(() -> new RuntimeException("User not found"));
+            User user = userService.ifUserExists(request.getUsername());
 
             BankAccount account = bankService.createAccount(user, request.getAdhar(), request.getPan(), request.getType());
             return ResponseEntity.ok(account);
 
         } catch (RuntimeException e) {
-            // Return a readable message to frontend
+
             return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
         } catch (Exception e) {
-            // Handle unexpected errors gracefully
+
             return ResponseEntity.status(500).body(Map.of("error", "Something went wrong. Please try again."));
         }
     }

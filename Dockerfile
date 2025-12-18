@@ -14,15 +14,7 @@ COPY --from=build /app/target/*.jar app.jar
 # Expose backend port
 EXPOSE 8080
 
-# Environment variables (Railway will inject real ones)
-ENV PORT=8080
-ENV DATABASE_URL=""
-ENV POSTGRES_USER=""
-ENV POSTGRES_PASSWORD=""
-ENV JWT_SECRET=""
-ENV RAZORPAY_KEY_ID=""
-ENV RAZORPAY_SECRET=""
-ENV FRAUD_ML_URL=""
-ENV LOAN_CHECK_URL=""
+
+
 
 ENTRYPOINT ["java", "-jar", "app.jar"]

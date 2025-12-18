@@ -3,7 +3,10 @@ package backend.backend.repository;
 import backend.backend.model.BankAccount;
 import backend.backend.model.Transaction;
 import backend.backend.model.User;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.repository.query.Param;
 
 import java.util.List;
 import java.util.Optional;
@@ -11,7 +14,7 @@ import java.util.Optional;
 public interface BankAccountRepository extends JpaRepository<BankAccount, Long> {
     Optional<BankAccount> findByUser(User user);
     Optional<BankAccount> findByAccountNumber(String accountNumber);
-    List<BankAccount> findAll();
+    Page<BankAccount> findAll(Pageable pageable);
     boolean existsByPan(String pan);
     boolean existsByAdhar(String adhar);
     Optional<BankAccount> findByUserUsername(String username);

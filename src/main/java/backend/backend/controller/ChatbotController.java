@@ -7,6 +7,7 @@ import backend.backend.service.AccountService;
 import backend.backend.service.GeminiService;
 import backend.backend.service.LoanService;
 import backend.backend.repository.LoanRepaymentRepository;
+import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -18,19 +19,18 @@ import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/api/chatbot")
+@RequiredArgsConstructor
 public class ChatbotController {
 
-    @Autowired
-    private AccountService accountService;
 
-    @Autowired
-    private GeminiService geminiService;
+    private final AccountService accountService;
 
-    @Autowired
-    private LoanService loanService;
+    private final GeminiService geminiService;
 
-    @Autowired
-    private LoanRepaymentRepository loanRepaymentRepository;
+    private final LoanService loanService;
+
+
+    private final LoanRepaymentRepository loanRepaymentRepository;
 
     @PostMapping
     public ResponseEntity<String> chat(@AuthenticationPrincipal CustomUserDetails userDetails,
@@ -46,7 +46,7 @@ public class ChatbotController {
 
         String response = null;
 
-        try {
+
             // --- Account Info ---
             if (normalized.contains("account number")) {
                 String accNum = accountService.getAccountNumber(userId);
@@ -102,13 +102,11 @@ public class ChatbotController {
                 }
 
             } else {
-                // Fallback to Gemini AI
+
                 response = geminiService.chatWithGemini(query);
             }
 
-        } catch (Exception e) {
-            response = "Sorry, something went wrong while processing your query: " + e.getMessage();
-        }
+
 
         return ResponseEntity.ok(response);
     }

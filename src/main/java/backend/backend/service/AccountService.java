@@ -1,45 +1,100 @@
 package backend.backend.service;
 
+import backend.backend.Exception.ResourceNotFoundException;
 import backend.backend.model.BankAccount;
 import backend.backend.model.Transaction;
 import backend.backend.repository.BankAccountRepository;
 import backend.backend.repository.TransactionRepository;
-import org.springframework.beans.factory.annotation.Autowired;
+import backend.backend.Dtos.BankAccountResponseDto;
+import backend.backend.requests_response.PagedResponse;
+import lombok.RequiredArgsConstructor;
+import org.springframework.cache.annotation.Cacheable;
+import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
+
 import org.springframework.stereotype.Service;
 
-import java.awt.print.Pageable;
 import java.util.List;
-
+import java.util.stream.Collectors;
+@RequiredArgsConstructor
 @Service
 public class AccountService {
 
-    @Autowired
-    private BankAccountRepository bankRepo;
 
-    @Autowired
-    private TransactionRepository txRepo;
-    public BankAccount getAccount(String username) {
-        return bankRepo.findByUserUsername(username)
-                .orElseThrow(() -> new RuntimeException("Account not found"));
+    private final BankAccountRepository bankRepo;
+    private final BuisnessLoggingService buisnessLoggingService;
+    private final  TransactionRepository txRepo;
+
+    @Cacheable(
+            value = "accountNumber",
+            key = "#username",
+            unless = "#result == null"
+    )
+    public String getAccount(String username) {
+        BankAccount bankAccount = bankRepo.findByUserUsername(username)
+                .orElseThrow(() -> new ResourceNotFoundException("Account not found"));
+        System.out.println("DB HIT GETACCOUNT");
+        return bankAccount.getAccountNumber();
     }
 
+    @Cacheable(
+            value = "accounts:all",
+            key = "'page:' + #page + ':size:' + #size"
+    )
+
+    public PagedResponse<BankAccountResponseDto> getAllAccountsPaged(int page, int size) {
+        if (page < 0) page = 0;
+        if (size <= 0) size = 20;
+        if (size > 100) size = 100;
+
+        Pageable pageable = PageRequest.of(page, size, Sort.by("id").descending());
+        Page<BankAccount> pageResult = bankRepo.findAll(pageable);
+
+        List<BankAccountResponseDto> content = pageResult.getContent()
+                .stream()
+                .map(this::toDto)
+                .collect(Collectors.toList());
 
 
+        return new PagedResponse<>(
+                content,
+                pageResult.getNumber(),
+                pageResult.getSize(),
+                pageResult.getTotalElements(),
+                pageResult.getTotalPages(),
+                pageResult.isLast()
+        );
+    }
+    private BankAccountResponseDto toDto(BankAccount b) {
+        return new BankAccountResponseDto(
+                b.getId(),
+
+                b.getAccountNumber(),
+                b.getType(),
+                b.getBalance(),
+                b.getUser().getUsername(),
+                b.isBlocked(),
+
+                b.isVerified()
+        );
+    }
+    @Cacheable(value = "balance", key = "#userId")
     public double getBalance(Long userId) {
         return bankRepo.findByUserId(userId)
-                .orElseThrow(() -> new RuntimeException("Account not found"))
+                .orElseThrow(() -> new ResourceNotFoundException("Account not found"))
                 .getBalance();
     }
 
     public Transaction getLastTransaction(int userId) {
         return txRepo.findTopByUserIdOrderByTimestampDesc(userId)
-                .orElseThrow(() -> new RuntimeException("No transactions found"));
+                .orElseThrow(() -> new ResourceNotFoundException("No transactions found"));
     }
 
     public List<Transaction> getTransactionById(int userId) {
         BankAccount account = bankRepo.findByUserId((long) userId)
-                .orElseThrow(() -> new RuntimeException("Bank account not found"));
+                .orElseThrow(() -> new ResourceNotFoundException("Bank account not found"));
 
         String accountNumber = account.getAccountNumber();
 
@@ -53,17 +108,17 @@ public class AccountService {
 
     public String getLastSentTo(int userId) {
         Transaction tx = txRepo.findTopByUserIdOrderByTimestampDesc(userId)
-                .orElseThrow(() -> new RuntimeException("No transactions found"));
+                .orElseThrow(() -> new ResourceNotFoundException("No transactions found"));
 
-        // If the user was the sender
+
         return "You last sent ₹" + tx.getAmount() + " to account " + tx.getReceiverAccount();
     }
 
     public String getLastReceivedFrom(int userId, String myAccountNumber) {
         Transaction tx = txRepo.findTopByUserIdOrderByTimestampDesc(userId)
-                .orElseThrow(() -> new RuntimeException("No transactions found"));
+                .orElseThrow(() -> new ResourceNotFoundException("No transactions found"));
 
-        // If the user was the receiver
+
         if (myAccountNumber.equals(tx.getReceiverAccount())) {
             return "You last received ₹" + tx.getAmount() + " from account " + tx.getSenderAccount();
         } else {
@@ -72,7 +127,7 @@ public class AccountService {
     }
     public String getAccountNumber(Long userId) {
         return bankRepo.findByUserId(userId)
-                .orElseThrow(() -> new RuntimeException("Account not found"))
+                .orElseThrow(() -> new ResourceNotFoundException("Account not found"))
                 .getAccountNumber();
     }
 

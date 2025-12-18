@@ -1,32 +1,52 @@
 package backend.backend.security;
 
+import backend.backend.configuration.JwtProperties;
 import io.jsonwebtoken.*;
-import org.springframework.beans.factory.annotation.Value;
+import io.jsonwebtoken.io.Decoders;
+import io.jsonwebtoken.security.Keys;
+import jakarta.annotation.PostConstruct;
+import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
+import java.nio.charset.StandardCharsets;
+import java.security.Key;
 import java.util.Date;
 
+@RequiredArgsConstructor
 @Component
 public class JwtUtil {
-    private static final  String SECRET_KEY = "vhjbhejeuihurghugherughdkugfhhkghdukgherugg";
+
+    private final JwtProperties jwtProperties;
+
+    private Key signingKey;
+    @PostConstruct
+    public void init() {
+        String secret = jwtProperties.getSecret();
+        if (secret == null || secret.isBlank()) {
+            throw new IllegalStateException("JWT secret is null/empty");
+        }
+        this.signingKey = Keys.hmacShaKeyFor(secret.getBytes(StandardCharsets.UTF_8));
+    }
+
+    private static final long EXPIRATION_TIME = 86400000L * 30; // 30 days
 
 
-
-    private static final long EXPIRATION_TIME = 86400000; // 1 day
 
     public String generateToken(String username, String role) {
+        long now = System.currentTimeMillis();
         return Jwts.builder()
                 .setSubject(username)
                 .claim("role", role)
-                .setIssuedAt(new Date())
-                .setExpiration(new Date(System.currentTimeMillis() + EXPIRATION_TIME))
-                .signWith(SignatureAlgorithm.HS256, SECRET_KEY)
+                .setIssuedAt(new Date(now))
+                .setExpiration(new Date(now + EXPIRATION_TIME))
+                .signWith(signingKey, SignatureAlgorithm.HS256)
                 .compact();
     }
 
     public Claims extractClaims(String token) {
-        return Jwts.parser()
-                .setSigningKey(SECRET_KEY)
+        return Jwts.parserBuilder()
+                .setSigningKey(signingKey)
+                .build()
                 .parseClaimsJws(token)
                 .getBody();
     }
