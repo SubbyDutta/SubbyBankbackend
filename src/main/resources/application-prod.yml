@@ -3,34 +3,45 @@ spring:
     url: ${DATABASE_URL}
     username: ${POSTGRES_USER}
     password: ${POSTGRES_PASSWORD}
+
   jpa:
     hibernate:
-      ddl-auto: validate
+      ddl-auto: update
     show-sql: false
+    database-platform: org.hibernate.dialect.PostgreSQLDialect
+
   cache:
     type: redis
+
   redis:
-    host: "${HOST_NAME}"
-    port: "${PORT}"
+    host: ${SPRING_REDIS_HOST}
+    port: ${SPRING_REDIS_PORT}
+    password: ${SPRING_REDIS_PASSWORD}
+    timeout: 2000ms
+    lettuce:
+      shutdown-timeout: 100ms
+
 razorpay:
-    key-id: "${RAZORPAY_KEY_ID}"
-    secret: "${RAZORPAY_SECRET}"
+  key-id: ${RAZORPAY_KEY_ID}
+  secret: ${RAZORPAY_SECRET}
 
 fraud:
-    url:  "${FRAUD_ML_URL}"
+  url: ${FRAUD_ML_URL}
 
 loan:
-    url: "${LOAN_CHECK_URL}"
+  url: ${LOAN_CHECK_URL}
+
+frontend:
+  url: ${FRONTEND_URL}
 
 security:
-    jwt:
-      secret: "${JWT_SECRET}"
-      issuer: "yourbank"
-      access-token-minutes: 30
-      refresh-token-days: 30
-
+  jwt:
+    secret: ${JWT_SECRET}
+    issuer: yourbank
+    access-token-minutes: 30
+    refresh-token-days: 30
 
 logging:
   level:
     root: INFO
-    com.yourbank: INFO
+    org.springframework.data.redis: INFO

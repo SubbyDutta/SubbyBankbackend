@@ -1,8 +1,10 @@
 spring:
   application:
     name: banking-app
+
   profiles:
     active: prod
+
 
 server:
   port: 8080
@@ -16,7 +18,8 @@ fraud:
 
 loan:
   url: ...
-
+frontend:
+  url: ...
 security:
   jwt:
     secret: ...
