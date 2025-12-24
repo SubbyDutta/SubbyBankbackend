@@ -11,15 +11,8 @@ spring:
     database-platform: org.hibernate.dialect.PostgreSQLDialect
 
   cache:
-    type: redis
-
-  redis:
-    host: ${SPRING_REDIS_HOST}
-    port: ${SPRING_REDIS_PORT}
-    password: ${SPRING_REDIS_PASSWORD}
-    timeout: 2000ms
-    lettuce:
-      shutdown-timeout: 100ms
+    type: caffeine
+    
 
 razorpay:
   key-id: ${RAZORPAY_KEY_ID}
@@ -41,7 +34,4 @@ security:
     access-token-minutes: 30
     refresh-token-days: 30
 
-logging:
-  level:
-    root: INFO
-    org.springframework.data.redis: INFO
+

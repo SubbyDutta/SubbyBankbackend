@@ -7,6 +7,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.data.jpa.repository.JpaRepository;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
@@ -31,17 +32,34 @@ public interface  TransactionRepository extends JpaRepository<Transaction, Long>
     @Query("SELECT t FROM Transaction t WHERE t.userId = :userId ORDER BY t.timestamp DESC")
     List<Transaction> findRecentTransactions(@Param("userId") int userId, Pageable pageable);
 
+    @Query("""
+    SELECT COUNT(t)
+    FROM Transaction t
+    WHERE t.userId = :userId
+      AND t.timestamp >= COALESCE(:from, t.timestamp)
+      AND t.timestamp <= COALESCE(:to, t.timestamp)
+      AND t.amount >= COALESCE(:minAmount, t.amount)
+      AND t.amount <= COALESCE(:maxAmount, t.amount)
+""")
+    long countByUserWithFilters(
+            @Param("userId") int userId,
+            @Param("from") LocalDateTime from,
+            @Param("to") LocalDateTime to,
+            @Param("minAmount") Double minAmount,
+            @Param("maxAmount") Double maxAmount
+    );
+
     //  Advanced: paginated + filtered search for a user
     @Query("""
-           SELECT t
-           FROM Transaction t
-           WHERE t.userId = :userId
-             AND (:from IS NULL OR t.timestamp >= :from)
-             AND (:to IS NULL OR t.timestamp <= :to)
-             AND (:minAmount IS NULL OR t.amount >= :minAmount)
-             AND (:maxAmount IS NULL OR t.amount <= :maxAmount)
-           ORDER BY t.timestamp DESC
-           """)
+   SELECT t
+   FROM Transaction t
+   WHERE t.userId = :userId
+     AND t.timestamp >= COALESCE(:from, t.timestamp)
+     AND t.timestamp <= COALESCE(:to, t.timestamp)
+     AND t.amount >= COALESCE(:minAmount, t.amount)
+     AND t.amount <= COALESCE(:maxAmount, t.amount)
+   ORDER BY t.timestamp DESC
+""")
     Page<Transaction> searchByUserWithFilters(
             @Param("userId") int userId,
             @Param("from") LocalDateTime from,
@@ -49,5 +67,5 @@ public interface  TransactionRepository extends JpaRepository<Transaction, Long>
             @Param("minAmount") Double minAmount,
             @Param("maxAmount") Double maxAmount,
             Pageable pageable
-    );
-}
+    );}
+

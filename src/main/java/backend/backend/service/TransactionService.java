@@ -35,7 +35,7 @@ public class TransactionService {
     private final TransactionRepository transactionRepository;
     private final RestTemplate restTemplate;
    private final BuisnessLoggingService buisnessLoggingService;
-    private final IdempotencyRepository idempotencyRepo;
+    private final CachedLists cachedLists;
     private String mlUrl;
 
     @PostConstruct
@@ -85,83 +85,60 @@ public class TransactionService {
 
         }}
 
-    @Cacheable(
-            value = "transactions:all",
-            key = "'page:' + #page + ':size:' + #size",
-            unless = "#result == null"
-    )
+
     public PagedResponse<TransactionDto> getAllTransactionsPaged(int page, int size) {
-        if (page < 0) page = 0;
-        if (size <= 0) size = 20;
-        if (size > 100) size = 100;
-        System.out.println("DB HIT -> getallTransactionsFiltered : ");
+        List<TransactionDto> content =
+                cachedLists.getAllTransactionsCached(page,size);
 
-        Pageable pageable = PageRequest.of(page, size, Sort.by("timestamp").descending());
-        Page<Transaction> pageResult = transactionRepository.findAllByOrderByTimestampDesc(pageable);
-
-        List<TransactionDto> content = pageResult.getContent()
-                .stream()
-                .map(this::toDto)
-                .collect(Collectors.toList());
+        long totalElements = transactionRepository.count();
+        int totalPages = (int) Math.ceil((double) totalElements / size);
 
         return new PagedResponse<>(
                 content,
-                pageResult.getNumber(),
-                pageResult.getSize(),
-                pageResult.getTotalElements(),
-                pageResult.getTotalPages(),
-                pageResult.isLast()
+                page,
+                size,
+                totalElements,
+                totalPages,
+                page + 1 >= totalPages
         );
+
+
+
     }
 
-    @Cacheable(
-            value = "transactions:user",
-            key = "'u:' + #username + ':p:' + #page + ':s:' + #size + ':f:' + #from + ':t:' + #to + ':min:' + #minAmount + ':max:' + #maxAmount",
-            unless = "#result == null"
-    )
-    public PagedResponse<TransactionDto> getUserTransactionsFiltered(
-            String username,
-            Integer page,
-            Integer size,
-            LocalDate from,
-            LocalDate to,
-            Double minAmount,
-            Double maxAmount
-    ) {
-        int p = (page == null || page < 0) ? 0 : page;
-        int s = (size == null || size <= 0) ? 20 : size;
-        if (s > 100) s = 100;
-        System.out.println("DB HIT -> getUserTransactionsFiltered : ");
-        Pageable pageable = PageRequest.of(p, s, Sort.by("timestamp").descending());
+    public PagedResponse<TransactionDto> getUserTransactionsFiltered(String username,
+                                                                     Integer page,
+                                                                     Integer size,
+                                                                     LocalDate from,
+                                                                     LocalDate to,
+                                                                     Double minAmount,
+                                                                     Double maxAmount) {
+        User user = userService.ifUserExists(username);
+        List<TransactionDto> content =
+                cachedLists.getUserTransactionsCached(user.getId().intValue(), page, size, from, to, minAmount, maxAmount);
 
         LocalDateTime fromTs = from != null ? from.atStartOfDay() : null;
-        LocalDateTime toTs = to != null ? to.plusDays(1).atStartOfDay() : null;
-
-        User user = userService.ifUserExists(username);
-
-        Page<Transaction> pageResult = transactionRepository.searchByUserWithFilters(
-                user.getId().intValue(),
-                fromTs,
-                toTs,
-                minAmount,
-                maxAmount,
-                pageable
-        );
-
-        List<TransactionDto> content = pageResult.getContent()
-                .stream()
-                .map(this::toDto)
-                .collect(Collectors.toList());
+        LocalDateTime toTs   = to != null ? to.plusDays(1).atStartOfDay() : null;
+        long totalElements =
+                transactionRepository.countByUserWithFilters(
+                        user.getId().intValue(),
+                        fromTs,
+                        toTs,
+                        minAmount,
+                        maxAmount
+                );
+        int totalPages = (int) Math.ceil((double) totalElements / size);
 
         return new PagedResponse<>(
                 content,
-                pageResult.getNumber(),
-                pageResult.getSize(),
-                pageResult.getTotalElements(),
-                pageResult.getTotalPages(),
-                pageResult.isLast()
+                page,
+                size,
+                totalElements,
+                totalPages,
+                page + 1 >= totalPages
         );
     }
+
 
     private TransactionDto toDto(Transaction t) {
         return new TransactionDto(

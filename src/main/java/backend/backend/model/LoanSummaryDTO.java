@@ -3,8 +3,11 @@ package backend.backend.model;
 
 import lombok.AllArgsConstructor;
 import lombok.Data;
+import lombok.RequiredArgsConstructor;
 
 import java.time.LocalDateTime;
+
+
 
 @Data
 @AllArgsConstructor
@@ -15,6 +18,8 @@ public class LoanSummaryDTO {
     private double monthlyEmi;
     private LocalDateTime nextDueDate;
     private int monthsRemaining;
+
+
 
 }
 

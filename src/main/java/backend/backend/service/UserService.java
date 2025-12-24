@@ -1,7 +1,9 @@
 package backend.backend.service;
 
+import backend.backend.Dtos.TransactionDto;
 import backend.backend.Dtos.UserResponseDto;
 import backend.backend.Exception.ResourceNotFoundException;
+import backend.backend.model.Transaction;
 import backend.backend.model.User;
 import backend.backend.repository.BankAccountRepository;
 import backend.backend.repository.TransactionRepository;
@@ -30,7 +32,7 @@ public class UserService {
     private final PasswordEncoder passwordEncoder;
     private final BankAccountRepository bankRepo;
     private final BuisnessLoggingService buisnessLoggingService;
-
+    private final CachedLists cachedLists;
 
     // Register user
     @Caching(evict =
@@ -55,35 +57,31 @@ public class UserService {
         return "Signup successful!";
     }
 
-    @Cacheable(
-            value = "users:all",
-            key = "'page:' + #page + ':size:' + #size",
-            unless = "#result == null"
-    )
+
     public PagedResponse<UserResponseDto> getAllUsers(int page, int size) {
         if (page < 0) page = 0;
         if (size <= 0) size = 20;
         if (size > 100) size = 100;
-        System.out.println("DB HIT GET ALL USERS");
-        Pageable pageable = PageRequest.of(page, size, Sort.by("updatedAt").descending());
-        Page<User> pageResult = userRepo.findAll(pageable);
-        List<UserResponseDto> content = pageResult.getContent()
-                .stream()
-                .map(this::toDto)
-                .collect(Collectors.toList());
+
+        List<UserResponseDto> content =
+                cachedLists.getAllUserCached(page,size);
+
+        long totalElements = userRepo.count();
+        int totalPages = (int) Math.ceil((double) totalElements / size);
+
         return new PagedResponse<>(
                 content,
-                pageResult.getNumber(),
-                pageResult.getSize(),
-                pageResult.getTotalElements(),
-                pageResult.getTotalPages(),
-                pageResult.isLast()
+                page,
+                size,
+                totalElements,
+                totalPages,
+                page + 1 >= totalPages
         );
 
     }
     @Cacheable(value = "user", key = "#id")
     public UserResponseDto getUserById(Long id) {
-        System.out.println("DB HIT -> getUserById : " + id);
+        System.out.println("DB HIT -> getUserById : ");
         User use=userRepo.findById(id).orElseThrow(()->new RuntimeException());
            return toDto(use);
 
@@ -127,10 +125,10 @@ public class UserService {
         buisnessLoggingService.log("USER DELETED",id.toString(),"USER DELETED WITH ID"+id);
         userRepo.deleteById(id);
     }
-   @Cacheable(value="existsuser",key="#username")
+
   public User ifUserExists(String username)
   {
-      System.out.println("DB HIT EXISTS USER");
+
       User user=userRepo.findByUsername(username).orElseThrow(()->new ResourceNotFoundException("account not found"));
       return user;
   }

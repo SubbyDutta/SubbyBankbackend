@@ -1,5 +1,6 @@
 package backend.backend.service;
 
+import backend.backend.Dtos.TransactionDto;
 import backend.backend.Exception.ForbiddenException;
 import backend.backend.Exception.ResourceNotFoundException;
 import backend.backend.Exception.UnauthorizedException;
@@ -52,6 +53,7 @@ public class LoanService {
     private  String loanCheckUrl;
    private final BuisnessLoggingService buisnessLoggingService;
    private final IdempotencyRepository idempotencyRepository;
+    private final CachedLists cachedLists;
 
     @PostConstruct
     public void init() {
@@ -182,7 +184,7 @@ public class LoanService {
     @Caching(evict = {
             @CacheEvict(value = "pendingapplications:all", allEntries = true),
             @CacheEvict(value = "loanApplications:all", allEntries = true),
-            @CacheEvict(value = "loanSummary", key = "#loanId"),
+
             @CacheEvict(value="balance", allEntries=true),
             @CacheEvict(value="BankAccountResponseDto", allEntries=true),
             @CacheEvict(value="UserApprovedLoan", allEntries = true,beforeInvocation = true),
@@ -249,80 +251,59 @@ public class LoanService {
         return loan;
     }
 
-   //get pending loans
-    @Cacheable(
-            value = "pendingapplications:all",
-            key = "'page:' + #page + ':size:' + #size",
-            unless = "#result == null"
-    )
+
     public PagedResponse<LoanApplicationResponseDto> getPendingLoans(
             int page,
             int size
 
     ) {
-        System.out.println("DB HIT GET PENDING LOAN");
+
         if (page < 0) page = 0;
         if (size <= 0) size = 20;
         if (size > 100) size = 100;
-        Pageable pageable =  PageRequest.of(page, size, Sort.by("approvedAt").descending());
-        // approved = false AND status != 'REJECTED'
-        Page<LoanApplication> pageResult= applicationRepo.findByApprovedFalseAndStatusNotIgnoreCase("REJECTED", pageable);
-        List<LoanApplicationResponseDto> content = pageResult.getContent()
-                .stream()
-                .map(this::toDto)
-                .collect(Collectors.toList());
+        List<LoanApplicationResponseDto> content=cachedLists.getUserPendingLoanCached(page, size);
+        long totalElements =
+                applicationRepo.count();
+        int totalPages = (int) Math.ceil((double) totalElements / size);
 
         return new PagedResponse<>(
                 content,
-                pageResult.getNumber(),
-                pageResult.getSize(),
-                pageResult.getTotalElements(),
-                pageResult.getTotalPages(),
-                pageResult.isLast()
+                page,
+                size,
+                totalElements,
+                totalPages,
+                page + 1 >= totalPages
         );
     }
 
-    @Cacheable(
-            value = "loanApplications:all",
-            key = "'page:' + #page + ':size:' + #size",
-            unless = "#result == null"
-    )
+
     public PagedResponse<LoanApplicationResponseDto> searchLoans(
             String username,
             Double minAmount,
             int page,
             int size
     ) {
-        if (page < 0) page = 0;
-        if (size <= 0) size = 20;
-        System.out.println("DB HIT LOANAPPLICATIONS ALL");
-        Pageable pageable = PageRequest.of(page, size, Sort.by("id").descending());
-
-        Page<LoanApplication> result = applicationRepo.searchLoans(username, minAmount, pageable);
-
-        List<LoanApplicationResponseDto> content = result.getContent()
-                .stream()
-                .map(this::toDto)
-                .toList();
+        List<LoanApplicationResponseDto> content =
+                cachedLists.getUserLoansCached(username,minAmount, page, size);
+        User user = userService.ifUserExists(username);
+        long totalElements =
+               applicationRepo.count();
+        int totalPages = (int) Math.ceil((double) totalElements / size);
 
         return new PagedResponse<>(
                 content,
-                result.getNumber(),
-                result.getSize(),
-                result.getTotalElements(),
-                result.getTotalPages(),
-                result.isLast()
+                page,
+                size,
+                totalElements,
+                totalPages,
+                page + 1 >= totalPages
         );
     }
 
 
     private final LoanRepaymentRepository repaymentRepo;
     @Caching(evict = {
-            @CacheEvict(
-                    value = "loanSummary",
-                    key = "#loanId",
-                    beforeInvocation = true
-            ),
+
             @CacheEvict(value = "score", allEntries = true,beforeInvocation = true),
             @CacheEvict(value="BankAccountResponseDto",allEntries = true,beforeInvocation = true),
             @CacheEvict(value="UserApprovedLoan", allEntries = true,beforeInvocation = true),
@@ -441,11 +422,8 @@ public class LoanService {
       return loan;
   }
 
-    @Cacheable(
-            value = "loanSummary",
-            key = "#loanId",
-            unless = "#result == null"
-    )
+
+
     public LoanSummaryDTO getLoanSummary(Long loanId) {
         System.out.println("DB HIT -> getLoanSummary : ");
 
@@ -465,16 +443,9 @@ public class LoanService {
                 loan.getNextDueDate(),
                 loan.getMonthsRemaining()
 
-
         );
     }
 
-    @Cacheable(
-            value = "repaylist",
-            key = "'page:' + #page + ':size:' + #size",
-
-    unless = "#result == null"
-    )
 public PagedResponse<LoanRepaymentResponseDto> repayList(
         int page,int size
 ){
@@ -482,23 +453,23 @@ public PagedResponse<LoanRepaymentResponseDto> repayList(
     if (size <= 0) size = 20;
     if (size > 100) size = 100;
         System.out.println("DB HIT REPAYLIST");
-    Pageable pageable = PageRequest.of(page, size, Sort.by("id").descending());
-    Page<LoanRepayment> pageResult = repaymentRepo.findAllByOrderByPaymentDateDesc(pageable);
+    List<LoanRepaymentResponseDto> content =
+            cachedLists.getAllRepayList(page,size);
 
-    List<LoanRepaymentResponseDto> content = pageResult.getContent()
-            .stream()
-            .map(this::toDto)
-            .collect(Collectors.toList());
+    long totalElements = repaymentRepo.count();
+    int totalPages = (int) Math.ceil((double) totalElements / size);
 
     return new PagedResponse<>(
             content,
-            pageResult.getNumber(),
-            pageResult.getSize(),
-            pageResult.getTotalElements(),
-            pageResult.getTotalPages(),
-            pageResult.isLast()
+            page,
+            size,
+            totalElements,
+            totalPages,
+            page + 1 >= totalPages
     );
 }
+
+
     private LoanRepaymentResponseDto toDto(LoanRepayment t) {
         return new LoanRepaymentResponseDto(
              t.getId(),

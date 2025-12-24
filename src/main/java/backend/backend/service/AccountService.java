@@ -2,6 +2,7 @@ package backend.backend.service;
 
 import backend.backend.Exception.ResourceNotFoundException;
 import backend.backend.model.BankAccount;
+import backend.backend.model.LoanRepayment;
 import backend.backend.model.Transaction;
 import backend.backend.repository.BankAccountRepository;
 import backend.backend.repository.TransactionRepository;
@@ -24,7 +25,7 @@ public class AccountService {
 
 
     private final BankAccountRepository bankRepo;
-    private final BuisnessLoggingService buisnessLoggingService;
+    private final CachedLists cachedLists;
     private final  TransactionRepository txRepo;
 
     @Cacheable(
@@ -39,10 +40,6 @@ public class AccountService {
         return bankAccount.getAccountNumber();
     }
 
-    @Cacheable(
-            value = "accounts:all",
-            key = "'page:' + #page + ':size:' + #size"
-    )
 
     public PagedResponse<BankAccountResponseDto> getAllAccountsPaged(int page, int size) {
         if (page < 0) page = 0;
@@ -50,23 +47,23 @@ public class AccountService {
         if (size > 100) size = 100;
 
         Pageable pageable = PageRequest.of(page, size, Sort.by("id").descending());
-        Page<BankAccount> pageResult = bankRepo.findAll(pageable);
+        List<BankAccountResponseDto> content =
+                cachedLists.getAllAccounts(page,size);
 
-        List<BankAccountResponseDto> content = pageResult.getContent()
-                .stream()
-                .map(this::toDto)
-                .collect(Collectors.toList());
-
+        long totalElements = bankRepo.count();
+        int totalPages = (int) Math.ceil((double) totalElements / size);
 
         return new PagedResponse<>(
                 content,
-                pageResult.getNumber(),
-                pageResult.getSize(),
-                pageResult.getTotalElements(),
-                pageResult.getTotalPages(),
-                pageResult.isLast()
+                page,
+                size,
+                totalElements,
+                totalPages,
+                page + 1 >= totalPages
         );
     }
+
+
     private BankAccountResponseDto toDto(BankAccount b) {
         return new BankAccountResponseDto(
                 b.getId(),

@@ -1,9 +1,10 @@
 spring:
   application:
     name: banking-app
+  profiles: { active: dev }
 
-  profiles:
-    active: prod
+
+
 
 
 server:
