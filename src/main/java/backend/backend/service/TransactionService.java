@@ -149,6 +149,8 @@ public class TransactionService {
                 t.getFraud_probability(),
                 t.getIs_fraud(),
                 t.getUserId(),
+                t.getIsForeign(),
+                t.getHour(),
                 t.getTimestamp() != null ? t.getTimestamp().toString() : null
         );
     }

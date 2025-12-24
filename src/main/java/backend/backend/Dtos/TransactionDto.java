@@ -21,6 +21,11 @@ public record TransactionDto(
         int isFraud,
         @NotNull
         int userId,
+        @NotNull
+        int isForeign,
+        @NotNull
+        int hour,
+
         String timestamp
 ) {}
 
