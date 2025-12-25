@@ -30,6 +30,10 @@ public class AuthController {
     private final JavaMailSender mailSender;
 
 
+    @GetMapping("/health")
+    public String health() {
+        return "OK";
+    }
 
 
     @PostMapping("/signup")
