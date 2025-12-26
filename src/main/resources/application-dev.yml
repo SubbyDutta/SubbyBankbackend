@@ -26,6 +26,8 @@ razorpay:
 fraud:
   url: "http://localhost:5000/predict"
 
+gemini:
+  key: "AIzaSyDpn-dHrGBkdeRGMwAupR3rFIE4ucj-PVA"
 loan:
   url: "http://localhost:5001/predictloan"
 

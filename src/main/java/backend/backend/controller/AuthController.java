@@ -37,9 +37,11 @@ public class AuthController {
 
 
     @PostMapping("/signup")
-    public String signup(@RequestBody User user) {
-        return userService.registerUser(user);
+    public ResponseEntity<String> signup(@RequestBody User user) {
+        userService.registerUser(user);
+        return ResponseEntity.ok("Signup successful!");
     }
+
 
     @PostMapping("/login")
     public TokenResponse login(@RequestBody AuthRequest request) {

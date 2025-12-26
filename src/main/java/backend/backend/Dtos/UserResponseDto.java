@@ -11,6 +11,10 @@ public record UserResponseDto(
         Long id,
         @NotNull
         String username,
+        @NotNull
+        String firstname,
+        @NotNull
+        String lastname,
 
         @NotNull
         String email,

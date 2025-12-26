@@ -1,29 +1,24 @@
 package backend.backend.service;
 
-import backend.backend.Dtos.TransactionDto;
 import backend.backend.Dtos.UserResponseDto;
+import backend.backend.Exception.GlobalExceptionHandler;
 import backend.backend.Exception.ResourceNotFoundException;
-import backend.backend.model.Transaction;
+import backend.backend.Exception.UnauthorizedException;
 import backend.backend.model.User;
 import backend.backend.repository.BankAccountRepository;
-import backend.backend.repository.TransactionRepository;
 import backend.backend.repository.UserRepository;
 import backend.backend.requests_response.*;
 import lombok.RequiredArgsConstructor;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.cache.annotation.Caching;
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.PageRequest;
-import org.springframework.data.domain.Pageable;
-import org.springframework.data.domain.Sort;
-import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
 import java.util.List;
 import java.util.Optional;
-import java.util.stream.Collectors;
+
 @RequiredArgsConstructor
 @Service
 public class UserService {
@@ -33,29 +28,46 @@ public class UserService {
     private final BankAccountRepository bankRepo;
     private final BuisnessLoggingService buisnessLoggingService;
     private final CachedLists cachedLists;
+    private GlobalExceptionHandler globalExceptionHandler;
 
-    // Register user
-    @Caching(evict =
-            {
-                    @CacheEvict(value="users:all" ,allEntries=true)
+
+    @Transactional
+    @Caching(evict = {
+            @CacheEvict(value = "users:all", allEntries = true)
+    })
+
+
+        public void registerUser(User user) {
+
+            if (userRepo.findByUsername(user.getUsername()).isPresent()) {
+                throw new UnauthorizedException("Username already exists!");
             }
-    )
-    public String registerUser(User user) {
-        Optional<User> existing = userRepo.findByUsername(user.getUsername());
-        if (existing.isPresent()) {
-            return "Username already exists!";
-        }
-        user.setPassword(passwordEncoder.encode(user.getPassword()));
-        user.setRole("USER");
-        if(user.getCreditScore()==0)
-        {
-            user.setCreditScore(650);
+
+            if (userRepo.findByEmail(user.getEmail()).isPresent()) {
+                throw new UnauthorizedException("Email already registered!");
+            }
+
+            if (userRepo.findByMobile(user.getMobile()).isPresent()) {
+                throw new UnauthorizedException("Mobile number already exists!");
+            }
+
+            user.setPassword(passwordEncoder.encode(user.getPassword()));
+            user.setRole("USER");
+
+            if (user.getCreditScore() == 0) {
+                user.setCreditScore(650);
+            }
+
+            userRepo.save(user);
+
+            buisnessLoggingService.log(
+                    "REGISTERED",
+                    user.getUsername(),
+                    "REGISTERED WITH EMAIL " + user.getEmail() +
+                            " MOBILE " + user.getMobile()
+            );
         }
 
-        userRepo.save(user);
-      buisnessLoggingService.log("REGISTERED",user.getUsername(),"REGISTERED WITH EMAIL "+user.getEmail()+" MOBILE "+user.getMobile());
-        return "Signup successful!";
-    }
 
 
     public PagedResponse<UserResponseDto> getAllUsers(int page, int size) {
@@ -115,6 +127,7 @@ public class UserService {
             @CacheEvict(value = "user", key = "#id",beforeInvocation = true),
             @CacheEvict(value = "score", allEntries = true),
             @CacheEvict(value="users:all" ,allEntries=true),
+            @CacheEvict(value="accounts:all",allEntries = true),
             @CacheEvict(value="existsuser",allEntries = true)
     })
     public void deleteUser(Long id) {
@@ -161,7 +174,8 @@ public class UserService {
         return new UserResponseDto(
                u.getId(),
                 u.getUsername(),
-
+                u.getFirstname(),
+                u.getLastname(),
                 u.getEmail(),
 
                 u.getMobile(),

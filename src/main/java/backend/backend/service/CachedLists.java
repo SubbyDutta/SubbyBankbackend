@@ -243,7 +243,8 @@ public class CachedLists {
         return new UserResponseDto(
                 u.getId(),
                 u.getUsername(),
-
+               u.getFirstname(),
+                u.getLastname(),
                 u.getEmail(),
 
                 u.getMobile(),

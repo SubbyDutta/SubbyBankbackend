@@ -1,5 +1,8 @@
 package backend.backend.service;
 
+import backend.backend.configuration.GeminiKeyProperties;
+import jakarta.annotation.PostConstruct;
+import lombok.RequiredArgsConstructor;
 import lombok.Value;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
@@ -11,11 +14,19 @@ import org.springframework.web.client.RestTemplate;
 import java.util.List;
 import java.util.Map;
 
+@RequiredArgsConstructor
 @Service
 public class GeminiService {
 
+    private final GeminiKeyProperties geminiKeyProperties;
+    private String apiKey;
+    @PostConstruct
+    public void init()
+    {
+        apiKey=geminiKeyProperties.getKey();
+    }
 
-    private String apiKey="AIzaSyDpn-dHrGBkdeRGMwAupR3rFIE4ucj-PVA";
+
 
 
     private String apiUrl="https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent";

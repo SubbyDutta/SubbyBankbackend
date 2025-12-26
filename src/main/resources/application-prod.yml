@@ -27,6 +27,8 @@ loan:
 frontend:
   url: ${FRONTEND_URL}
 
+gemini:
+  key: ${GEMINI_KEY}
 security:
   jwt:
     secret: ${JWT_SECRET}
