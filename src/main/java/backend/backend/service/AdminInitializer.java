@@ -34,7 +34,7 @@ public class AdminInitializer {
         return args -> {
             if (!userRepository.existsByUsername(username)) {
                 User admin = new User();
-                admin.setUsername("ADMIN123");
+                admin.setUsername(username);
                 admin.setFirstname("ADMIN");
                 admin.setLastname("ADMIN");
 
