@@ -30,7 +30,9 @@ gemini:
   key: "AIzaSyDpn-dHrGBkdeRGMwAupR3rFIE4ucj-PVA"
 loan:
   url: "http://localhost:5001/predictloan"
-
+admin:
+  username: "ADMIN123"
+  password: "123456"
 frontend:
   url: "http://localhost:3000/"
 

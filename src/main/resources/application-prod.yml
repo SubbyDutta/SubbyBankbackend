@@ -24,6 +24,10 @@ fraud:
 loan:
   url: ${LOAN_CHECK_URL}
 
+admin:
+  username: ${ADMIN_USERNAME}
+  password: ${ADMIN_PASSWORD}
+
 frontend:
   url: ${FRONTEND_URL}
 
