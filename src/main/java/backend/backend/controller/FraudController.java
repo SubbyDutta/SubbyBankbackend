@@ -30,10 +30,5 @@ public class FraudController {
         return transactionService.getAllTransactionsPaged(page, size);
     }
 
-   /* @GetMapping("/check")
-    @PreAuthorize("hasRole('ADMIN')")
-    public List<Transaction> checkallfrauds() {
-        List<Transaction> all = tRepo.findAll();
-        return transactionService.checkFraud(all);
-    }*/
+
 }

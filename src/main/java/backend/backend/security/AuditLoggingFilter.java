@@ -60,11 +60,11 @@ public class AuditLoggingFilter extends OncePerRequestFilter {
 
                 log.setTimestamp(LocalDateTime.now());
 
-                // Save asynchronously
+
                 CompletableFuture.runAsync(() -> auditLogRepository.save(log));
 
             } catch (Exception e) {
-                // NEVER fail request due to audit
+
                 LoggerFactory.getLogger(getClass())
                         .warn("Audit logging failed", e);
             }

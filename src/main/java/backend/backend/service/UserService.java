@@ -1,7 +1,6 @@
 package backend.backend.service;
 
 import backend.backend.Dtos.UserResponseDto;
-import backend.backend.Exception.GlobalExceptionHandler;
 import backend.backend.Exception.ResourceNotFoundException;
 import backend.backend.Exception.UnauthorizedException;
 import backend.backend.model.User;
@@ -28,45 +27,46 @@ public class UserService {
     private final BankAccountRepository bankRepo;
     private final BuisnessLoggingService buisnessLoggingService;
     private final CachedLists cachedLists;
-    private GlobalExceptionHandler globalExceptionHandler;
+
 
 
     @Transactional
     @Caching(evict = {
-            @CacheEvict(value = "users:all", allEntries = true)
+            @CacheEvict(value = "banking:users:list", allEntries = true)
     })
+    public void registerUser(User user) {
 
-
-        public void registerUser(User user) {
-
-            if (userRepo.findByUsername(user.getUsername()).isPresent()) {
-                throw new UnauthorizedException("Username already exists!");
-            }
-
-            if (userRepo.findByEmail(user.getEmail()).isPresent()) {
-                throw new UnauthorizedException("Email already registered!");
-            }
-
-            if (userRepo.findByMobile(user.getMobile()).isPresent()) {
-                throw new UnauthorizedException("Mobile number already exists!");
-            }
-
-            user.setPassword(passwordEncoder.encode(user.getPassword()));
-            user.setRole("USER");
-
-            if (user.getCreditScore() == 0) {
-                user.setCreditScore(650);
-            }
-
-            userRepo.save(user);
-
-            buisnessLoggingService.log(
-                    "REGISTERED",
-                    user.getUsername(),
-                    "REGISTERED WITH EMAIL " + user.getEmail() +
-                            " MOBILE " + user.getMobile()
-            );
+        if (userRepo.findByUsername(user.getUsername()).isPresent()) {
+            throw new UnauthorizedException("Username already exists!");
         }
+
+        if (userRepo.findByEmail(user.getEmail()).isPresent()) {
+            throw new UnauthorizedException("Email already registered!");
+        }
+
+        if (userRepo.findByMobile(user.getMobile()).isPresent()) {
+            throw new UnauthorizedException("Mobile number already exists!");
+        }
+
+        user.setPassword(passwordEncoder.encode(user.getPassword()));
+        user.setRole("USER");
+
+        if (user.getCreditScore() == 0) {
+            user.setCreditScore(650);
+        }
+        user.setHasLoan(false);
+        user.setRemaining(0);
+        user.setLoanamount(0);
+        user.setDueDate(null);
+        userRepo.save(user);
+
+        buisnessLoggingService.log(
+                "REGISTERED",
+                user.getUsername(),
+                "REGISTERED WITH EMAIL " + user.getEmail() +
+                        " MOBILE " + user.getMobile()
+        );
+    }
 
 
 
@@ -91,30 +91,41 @@ public class UserService {
         );
 
     }
-    @Cacheable(value = "user", key = "#id")
-    public UserResponseDto getUserById(Long id) {
-        System.out.println("DB HIT -> getUserById : ");
-        User use=userRepo.findById(id).orElseThrow(()->new RuntimeException());
-           return toDto(use);
 
+    @Cacheable(value = "banking:user:byId", key = "#id", sync = true)
+    public UserResponseDto getUserById(Long id) {
+        System.out.println("DB HIT -> getUserById : " + id);
+        User use = userRepo.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+        return toDto(use);
     }
 
-@Caching(evict={
-        @CacheEvict(value = "user", key = "#id",beforeInvocation = true),
-        @CacheEvict(value = "score", allEntries = true),
-        @CacheEvict(value="users:all" ,allEntries=true)
-})
+    @Caching(evict = {
+            @CacheEvict(value = "banking:user:byId", key = "#id"),
+            @CacheEvict(value = "banking:credit:score", allEntries = true),
+            @CacheEvict(value = "banking:users:list", allEntries = true)
+    })
+    @Transactional
     public UserResponseDto updateUser(Long id, User updated) {
         User user = userRepo.findById(id).orElseThrow(() ->
-                new RuntimeException("User not found with ID: " + id)
+                new ResourceNotFoundException("User not found with ID: " + id)
         );
-    System.out.println("DB HIT UPDSTE USEER");
+        System.out.println("DB HIT UPDATE USER: " + id);
+
         user.setEmail(updated.getEmail());
         user.setMobile(updated.getMobile());
+        user.setFirstname(updated.getFirstname());
+        user.setLastname(updated.getLastname());
+        user.setCreditScore(updated.getCreditScore());
         user.setRole(updated.getRole());
+        user.setHasLoan(updated.isHasLoan());
+        user.setRemaining(updated.getRemaining());
+        user.setLoanamount(updated.getLoanamount());
         User savedUser = userRepo.save(user);
 
-      buisnessLoggingService.log("USER UPDATED",user.getUsername(),"UPDATED AT "+user.getUpdatedAt());
+        buisnessLoggingService.log("USER UPDATED", user.getUsername(),
+                "UPDATED AT " + user.getUpdatedAt());
+
         bankRepo.findByUserId(id).ifPresent(account -> {
             account.setUser(savedUser);
             bankRepo.save(account);
@@ -123,30 +134,31 @@ public class UserService {
         return toDto(savedUser);
     }
 
-    @Caching(evict={
-            @CacheEvict(value = "user", key = "#id",beforeInvocation = true),
-            @CacheEvict(value = "score", allEntries = true),
-            @CacheEvict(value="users:all" ,allEntries=true),
-            @CacheEvict(value="accounts:all",allEntries = true),
-            @CacheEvict(value="existsuser",allEntries = true)
+    @Caching(evict = {
+            @CacheEvict(value = "banking:user:byId", key = "#id"),
+            @CacheEvict(value = "banking:credit:score", allEntries = true),
+            @CacheEvict(value = "banking:users:list", allEntries = true),
+            @CacheEvict(value = "banking:accounts:list", allEntries = true),
+            @CacheEvict(value = "banking:user:exists", allEntries = true)
     })
+    @Transactional
     public void deleteUser(Long id) {
 
         bankRepo.findByUserId(id).ifPresent(account -> {
             bankRepo.delete(account);
         });
-        buisnessLoggingService.log("USER DELETED",id.toString(),"USER DELETED WITH ID"+id);
+        buisnessLoggingService.log("USER DELETED", id.toString(),
+                "USER DELETED WITH ID " + id);
         userRepo.deleteById(id);
     }
 
-  public User ifUserExists(String username)
-  {
 
-      User user=userRepo.findByUsername(username).orElseThrow(()->new ResourceNotFoundException("account not found"));
-      return user;
-  }
-
-
+    public User ifUserExists(String username) {
+        System.out.println("DB HIT -> ifUserExists: " + username);
+        User user = userRepo.findByUsername(username)
+                .orElseThrow(() -> new ResourceNotFoundException("account not found"));
+        return user;
+    }
 
 
 
@@ -161,34 +173,31 @@ public class UserService {
         return null;
     }
 
-    @Cacheable(value = "score", key = "#username")
-    public int fetchCreditScore(String username)
-    {
-        System.out.println("DB HIT CREDITSCORE");
-        User user= userRepo.findByUsername(username).orElseThrow(()->new ResourceNotFoundException("user not found"));
-        int score=user.getCreditScore();
+    @Cacheable(value = "banking:credit:score", key = "#username", sync = true)
+    public int fetchCreditScore(String username) {
+        System.out.println("DB HIT CREDITSCORE: " + username);
+        User user = userRepo.findByUsername(username)
+                .orElseThrow(() -> new ResourceNotFoundException("user not found"));
+        int score = user.getCreditScore();
         return score;
     }
 
     private UserResponseDto toDto(User u) {
         return new UserResponseDto(
-               u.getId(),
+                u.getId(),
                 u.getUsername(),
                 u.getFirstname(),
                 u.getLastname(),
                 u.getEmail(),
-
                 u.getMobile(),
                 u.getRole(),
                 u.getCreditScore(),
-                u.getUpdatedAt()
-
-
-
+                u.getUpdatedAt(),
+                u.isHasLoan(),
+                u.getLoanamount(),
+                u.getRemaining(),
+                u.getDueDate()
 
         );
     }
-
-
-
 }

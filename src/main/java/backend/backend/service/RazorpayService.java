@@ -7,18 +7,14 @@ import backend.backend.model.IdempotencyKey;
 import backend.backend.model.Transaction;
 import backend.backend.model.User;
 import backend.backend.repository.IdempotencyRepository;
-import backend.backend.repository.UserRepository;
 import backend.backend.requests_response.PaymentVerifyRequest;
 import com.razorpay.*;
 import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
 import org.json.JSONObject;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Caching;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Isolation;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
@@ -28,29 +24,27 @@ import java.util.Map;
 @Service
 public class RazorpayService {
 
-
     private final RazorpayProperties razorpayProperties;
-
     private final UserService userService;
     private final TransactionService transactionService;
     private final BankService bankService;
     private final IdempotencyRepository idempotencyRepository;
-    private final UserRepository userRepository;
 
 
-    String keyId ;
-    String keySecret ;
+    String keyId;
+    String keySecret;
+
     @PostConstruct
     public void init() {
-       this.keyId=razorpayProperties.getKeyId();
-       this.keySecret=razorpayProperties.getSecret();
+        this.keyId = razorpayProperties.getKeyId();
+        this.keySecret = razorpayProperties.getSecret();
     }
 
     public Order createOrder(int amountInRupees, String receiptId) throws RazorpayException {
         RazorpayClient client = new RazorpayClient(keyId, keySecret);
 
         JSONObject orderRequest = new JSONObject();
-        orderRequest.put("amount", amountInRupees * 100); // amount in paise
+        orderRequest.put("amount", amountInRupees * 100);
         orderRequest.put("currency", "INR");
         orderRequest.put("receipt", receiptId);
         orderRequest.put("payment_capture", 1);
@@ -66,17 +60,16 @@ public class RazorpayService {
             return false;
         }
     }
+
     @Caching(evict = {
-
-            @CacheEvict(value="BankAccountResponseDto", allEntries=true),
-            @CacheEvict(value = "transactions:all", allEntries = true),
-            @CacheEvict(value = "transactions:user", allEntries = true)
+            @CacheEvict(value = "banking:account:dto", allEntries = true),
+            @CacheEvict(value = "banking:transactions:list", allEntries = true),
+            @CacheEvict(value = "banking:transactions:user", allEntries = true)
     })
-    @Transactional
-    public void verifyAndCredit(PaymentVerifyRequest req,String key) {
-        if (!idempotencyRepository.existsById(key)) {
+    @Transactional(timeout = 10)
+    public void verifyAndCredit(PaymentVerifyRequest req, String key) {
+        if (!bankService.isIdempotent(key)) {
             double amount = parseAmount(req.amount());
-
 
             boolean verified = verifySignature(
                     req.razorpay_order_id(),
@@ -88,28 +81,20 @@ public class RazorpayService {
                 throw new BadRequestException("Invalid Razorpay signature");
             }
 
-
             User user = userService.ifUserExists(req.username());
-            BankAccountResponseDto account =
-                    bankService.getAccountByid(user.getId());
+            BankAccountResponseDto account = bankService.getAccountByid(user.getId());
 
-
-            bankService.updateUserBalance(
-                    req.username(),
-                    account.balance() + amount
-            );
-
+            bankService.updateUserBalance(req.username(), account.balance() + amount);
 
             Transaction txn = buildTransaction(user, account, amount);
 
-
             transactionService.checkFraud(txn);
-            IdempotencyKey idempotencyKey=new IdempotencyKey();
+
+            IdempotencyKey idempotencyKey = new IdempotencyKey();
             idempotencyKey.setKey(key);
             idempotencyKey.setCreatedAt(LocalDateTime.now());
             idempotencyRepository.save(idempotencyKey);
         }
-
     }
 
     private double parseAmount(String amountStr) {
@@ -123,11 +108,7 @@ public class RazorpayService {
         return amount;
     }
 
-    private Transaction buildTransaction(
-            User user,
-            BankAccountResponseDto account,
-            double amount
-    ) {
+    private Transaction buildTransaction(User user, BankAccountResponseDto account, double amount) {
         Transaction txn = new Transaction();
         txn.setSenderAccount("RAZORPAY_TOPUP");
         txn.setReceiverAccount(account.accountNumber());
@@ -152,7 +133,7 @@ public class RazorpayService {
             response.put("orderId", order.get("id").toString());
             response.put("amount", order.get("amount").toString());
             response.put("currency", order.get("currency").toString());
-            response.put("key", "rzp_test_RVPxvjAjcRvhXL");
+            response.put("key", keyId);
 
             return response.toMap();
         } catch (Exception e) {
@@ -160,4 +141,3 @@ public class RazorpayService {
         }
     }
 }
-

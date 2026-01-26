@@ -21,7 +21,6 @@ public record LoanApplicationResponseDto(
         @NotNull
         boolean approved ,
         @NotNull
-
         String status,
         @NotNull
         @Positive

@@ -1,112 +1,61 @@
 package backend.backend.controller;
 
-import backend.backend.model.LoanRepayment;
-import backend.backend.model.Transaction;
 import backend.backend.security.CustomUserDetails;
-import backend.backend.service.AccountService;
-import backend.backend.service.GeminiService;
-import backend.backend.service.LoanService;
-import backend.backend.repository.LoanRepaymentRepository;
+import backend.backend.chatbot.ChatIntent;
+import backend.backend.chatbot.ChatResponse;
+import backend.backend.chatbot.IntentDetector;
+import backend.backend.chatbot.PolicyEngine;
+import backend.backend.chatbot.handlers.DirectDataHandler;
+import backend.backend.chatbot.handlers.GenerativeHandler;
+import backend.backend.chatbot.handlers.RagHandler;
 import lombok.RequiredArgsConstructor;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.List;
 import java.util.Map;
-import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/api/chatbot")
 @RequiredArgsConstructor
-public class ChatbotController {
+public class  ChatbotController {
 
-
-    private final AccountService accountService;
-
-    private final GeminiService geminiService;
-
-    private final LoanService loanService;
-
-
-    private final LoanRepaymentRepository loanRepaymentRepository;
+    private final IntentDetector intentDetector;
+    private final PolicyEngine policyEngine;
+    private final DirectDataHandler directDataHandler;
+    private final RagHandler ragHandler;
+    private final GenerativeHandler generativeHandler;
 
     @PostMapping
-    public ResponseEntity<String> chat(@AuthenticationPrincipal CustomUserDetails userDetails,
-                                       @RequestBody Map<String, String> body) {
+    public ResponseEntity<ChatResponse> chat(
+            @AuthenticationPrincipal CustomUserDetails user,
+            @RequestBody Map<String, String> body
+    ) {
         String query = body.get("query");
-        if (query == null || query.trim().isEmpty()) {
-            return ResponseEntity.badRequest().body("Please enter a valid query.");
+
+        if (query == null || query.trim().isEmpty() || query.length() > 500) {
+            return ResponseEntity.badRequest()
+                    .body(ChatResponse.error("Invalid query"));
         }
 
-        String normalized = query.toLowerCase().trim();
-        String username = userDetails.getUsername();
-        Long userId = userDetails.getUser_id();
+        ChatIntent intent = intentDetector.detect(query);
 
-        String response = null;
+        policyEngine.validate(intent, user);
 
+        ChatResponse response = switch (intent.getType()) {
 
-            // --- Account Info ---
-            if (normalized.contains("account number")) {
-                String accNum = accountService.getAccountNumber(userId);
-                response = "Your account number is " + accNum;
+            case DIRECT_DATA ->
+                    directDataHandler.handle(intent, user);
 
-            } else if (normalized.contains("balance")) {
-                double balance = accountService.getBalance(userId);
-                response = "Your current balance is ₹" + balance;
+            case ANALYTICAL ->
+                    ragHandler.handle(intent, user);
 
-            } else if (normalized.contains("last sent")) {
-                response = accountService.getLastSentTo(userId.intValue());
+            case PROCEDURAL ->
+                    generativeHandler.handle(intent);
 
-            } else if (normalized.contains("last received")) {
-                response = accountService.getLastReceivedFrom(userId.intValue(),
-                        accountService.getAccountNumber(userId));
-
-            } else if (normalized.contains("last transaction")) {
-                Transaction tx = accountService.getLastTransaction(userId.intValue());
-                if (tx != null) {
-                    response = "Your last transaction was ₹" + tx.getAmount() +
-                            " to account " + tx.getReceiverAccount() +
-                            " on " + tx.getTimestamp();
-                } else {
-                    response = "You have no transactions yet.";
-                }
-
-            } else if (normalized.contains("last 5 transactions") ||
-                    normalized.contains("recent transactions") ||
-                    normalized.contains("show transactions")) {
-
-                List<Transaction> txs = accountService.getLastNTransactions(userId.intValue(), 5);
-                if (txs.isEmpty()) {
-                    response = "You have no recent transactions.";
-                } else {
-                    response = txs.stream()
-                            .map(tx -> "₹" + tx.getAmount() + " to " + tx.getReceiverAccount() +
-                                    " on " + tx.getTimestamp())
-                            .collect(Collectors.joining("\n"));
-                }
-
-            } else if (normalized.contains("loan") || normalized.contains("my loans")) {
-                List<LoanRepayment> repayments =
-                        loanRepaymentRepository.findByUsernameOrderByPaymentDateDesc(username);
-
-                if (repayments.isEmpty()) {
-                    response = "You don't have any loan repayment records.";
-                } else {
-                    response = repayments.stream()
-                            .map(lr -> "Loan ID: " + lr.getId() +
-                                    " | Paid: ₹" + lr.getAmountPaid() +
-                                    " | Remaining: ₹" + lr.getRemainingBalance())
-                            .collect(Collectors.joining("\n"));
-                }
-
-            } else {
-
-                response = geminiService.chatWithGemini(query);
-            }
-
-
+            default ->
+                    ChatResponse.blocked();
+        };
 
         return ResponseEntity.ok(response);
     }

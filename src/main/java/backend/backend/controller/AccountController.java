@@ -1,6 +1,7 @@
 package backend.backend.controller;
 
 
+import backend.backend.Dtos.UserResponseDto;
 import backend.backend.model.BankAccount;
 import backend.backend.model.User;
 import backend.backend.repository.BankAccountRepository;
@@ -19,9 +20,7 @@ import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 import backend.backend.service.BankService;
 import org.springframework.web.server.ResponseStatusException;
-
 import java.time.LocalDate;
-import java.time.LocalDateTime;
 import java.util.Map;
 
 @RequiredArgsConstructor
@@ -29,8 +28,6 @@ import java.util.Map;
 @RequestMapping("/api/user")
 public class AccountController {
     private final AccountService accountService;
-
-    private final BankAccountRepository bankRepo;
     private final BankService bankService;
     private final UserService userService;
     private final TransactionService transactionService;
@@ -42,12 +39,13 @@ public class AccountController {
         if (userDetails == null)
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Map.of("error", "Unauthorized"));
         String username = userDetails.getUsername();
-
         String accountNumber=accountService.getAccount(username);
         if(accountNumber.equals("null"))
             return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of("error", "bank account not found"));
         return ResponseEntity.ok(accountNumber);
     }
+
+
 
     //  Get account balance
     @PreAuthorize("hasRole('USER')")

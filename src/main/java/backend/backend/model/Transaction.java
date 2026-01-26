@@ -28,8 +28,6 @@ public class Transaction {
     private double fraud_probability;
     private int is_fraud;
     private int userId;
-
-
     private LocalDateTime timestamp;
 
     @PrePersist

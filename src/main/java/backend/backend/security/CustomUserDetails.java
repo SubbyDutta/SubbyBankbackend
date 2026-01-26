@@ -49,10 +49,7 @@ public class CustomUserDetails implements UserDetails {
         return true;
     }
 
-  /*  @Override
-    public boolean isAccountNonLocked() {
-        return !user.isBlocked(); // optional: based on your model
-    }*/
+
 
     @Override
     public boolean isCredentialsNonExpired() {

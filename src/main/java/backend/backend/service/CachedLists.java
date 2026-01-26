@@ -21,29 +21,23 @@ public class CachedLists {
     private final BankAccountRepository bankRepo;
     private final LoanApplicationRepository applicationRepo;
     private final TransactionRepository  transactionRepository;
-
     private final UserRepository userRepo;
     private final LoanRepaymentRepository repaymentRepo;
+    private final BuisnessLoggingRepository buisnessLoggingRepository;
+
     @Cacheable(
-            value = "accounts:all",
-            key = "'page:' + #page + ':size:' + #size"
+            value = "banking:accounts:list",
+            key = "'page:' + #page + ':size:' + #size",
+            sync = true
     )
-    public List<BankAccountResponseDto> getAllAccounts(int page, int size
-
-    ) {
-
-
+    public List<BankAccountResponseDto> getAllAccounts(int page, int size) {
         if (page < 0) page = 0;
         if (size <= 0) size = 20;
         if (size > 100) size = 100;
-        System.out.println("DB HIT -> getallBankAccount : ");
+        System.out.println("DB HIT -> getAllBankAccount : page=" + page + " size=" + size);
 
         Pageable pageable = PageRequest.of(page, size, Sort.by("id").descending());
-
-
-        Page<BankAccount> pageResult =
-                bankRepo.findAll(pageable);
-
+        Page<BankAccount> pageResult = bankRepo.findAll(pageable);
 
         return pageResult.getContent()
                 .stream()
@@ -51,102 +45,110 @@ public class CachedLists {
                 .toList();
     }
 
-
-    //get pending loans
     @Cacheable(
-            value = "pendingapplications:all",
+            value = "banking:loans:pending",
             key = "'page:' + #page + ':size:' + #size",
-            unless = "#result == null"
-    )  public List<LoanApplicationResponseDto> getUserPendingLoanCached(
 
+            sync = true
+    )
+    public List<LoanApplicationResponseDto> getUserPendingLoanCached(
             Integer page,
             Integer size
-
-
     ) {
-        System.out.println("DB HIT -> getUserPendingLoans");
+        System.out.println("DB HIT -> getUserPendingLoans: page=" + page + " size=" + size);
 
         int p = (page == null || page < 0) ? 0 : page;
         int s = (size == null || size <= 0) ? 20 : size;
         if (s > 100) s = 100;
 
-        Pageable pageable =  PageRequest.of(page, size, Sort.by("approvedAt").descending());
-        Page<LoanApplication> pageResult= applicationRepo.findByApprovedFalseAndStatusNotIgnoreCase("REJECTED", pageable);
-
-
-
-
-
+        Pageable pageable = PageRequest.of(p, s, Sort.by("approvedAt").descending());
+        Page<LoanApplication> pageResult = applicationRepo.findByApprovedFalseAndStatusNotIgnoreCase("REJECTED", pageable);
 
         return pageResult.getContent()
                 .stream()
                 .map(this::toDtoLoanApplications)
                 .toList();
     }
+    public List<BuisnessLoggingResponseDto> getBuisnessLogs(
+            String action,
+            Integer page,
+            Integer size
+    ){
+        int p = (page == null || page < 0) ? 0 : page;
+        int s = (size == null || size <= 0) ? 20 : size;
+        if (s > 100) s = 100;
+        Pageable pageable = PageRequest.of(p, s, Sort.by("timestamp").descending());
+        Page<BuisnessLog> pageResult = buisnessLoggingRepository.findByAction(action,pageable);
+        return pageResult.getContent().stream().map(this::toDtoLogs).toList();
+
+    }
+
     @Cacheable(
-            value = "loanApplications:all",
-            key = "'page:' + #page + ':size:' + #size",
-            unless = "#result == null"
+            value = "banking:loans:list",
+            key = "'u:' + #username + ':min:' + #minAmount + ':p:' + #page + ':s:' + #size",
+
+            sync = true
     )
     public List<LoanApplicationResponseDto> getUserLoansCached(
             String username,
             Double minAmount,
             Integer page,
             Integer size
-
-
     ) {
-        System.out.println("DB HIT -> getUserLoans");
+        System.out.println("DB HIT -> getUserLoans: username=" + username);
 
         int p = (page == null || page < 0) ? 0 : page;
         int s = (size == null || size <= 0) ? 20 : size;
         if (s > 100) s = 100;
 
-        Pageable pageable = PageRequest.of(p, s, Sort.by("timestamp").descending());
-
-
-
-
-        Page<LoanApplication> pageResult =
-                applicationRepo.searchLoans(username,minAmount,pageable);
+        Pageable pageable = PageRequest.of(p, s, Sort.by("approvedAt").descending());
+        Page<LoanApplication> pageResult = applicationRepo.searchLoans(username, minAmount, pageable);
 
         return pageResult.getContent()
                 .stream()
                 .map(this::toDtoLoanApplications)
                 .toList();
     }
+
     @Cacheable(
-            value = "repaylist",
+            value = "banking:loans:repayments",
             key = "'page:' + #page + ':size:' + #size",
 
-            unless = "#result == null"
+            sync = true
     )
-    public List<LoanRepaymentResponseDto> getAllRepayList(int page, int size
-
-    ) {
-
-
+    public List<LoanRepaymentResponseDto> getAllRepayList(int page, int size) {
         if (page < 0) page = 0;
         if (size <= 0) size = 20;
         if (size > 100) size = 100;
-        System.out.println("DB HIT -> getall Loan Repayments : ");
+        System.out.println("DB HIT -> getAllLoanRepayments : page=" + page);
 
         Pageable pageable = PageRequest.of(page, size, Sort.by("id").descending());
-
-
-        Page<LoanRepayment> pageResult =
-                repaymentRepo.findAllByOrderByPaymentDateDesc(pageable);
-
+        Page<LoanRepayment> pageResult = repaymentRepo.findAllByOrderByPaymentDateDesc(pageable);
 
         return pageResult.getContent()
                 .stream()
                 .map(this::toDtoLoanRepayments)
                 .toList();
     }
+    public List<BuisnessLoggingResponseDto> getAllLogs(int page,int size)
+    {
+        if (page < 0) page = 0;
+        if (size <= 0) size = 20;
+        if (size > 100) size = 100;
+        Pageable pageable = PageRequest.of(page, size, Sort.by("timestamp").descending());
+        Page<BuisnessLog> pageResult=buisnessLoggingRepository.findAllByOrderByTimestampDesc(pageable);
+
+        return pageResult.getContent()
+                .stream()
+                .map(this::toDtoLogs)
+                .toList();
+    }
+
 
     @Cacheable(
-            value = "transactions:user",
-            key = "'u:' + #username + ':p:' + #page + ':s:' + #size + ':f:' + #from + ':t:' + #to + ':min:' + #minAmount + ':max:' + #maxAmount"
+            value = "banking:transactions:user",
+            key = "'u:' + #userId + ':p:' + #page + ':s:' + #size + ':f:' + #from + ':t:' + #to + ':min:' + #minAmount + ':max:' + #maxAmount",
+            sync = true
     )
     public List<TransactionDto> getUserTransactionsCached(
             int userId,
@@ -157,7 +159,7 @@ public class CachedLists {
             Double minAmount,
             Double maxAmount
     ) {
-        System.out.println("DB HIT -> getUserTransactionsFiltered");
+        System.out.println("DB HIT -> getUserTransactionsFiltered: userId=" + userId);
 
         int p = (page == null || page < 0) ? 0 : page;
         int s = (size == null || size <= 0) ? 20 : size;
@@ -168,95 +170,82 @@ public class CachedLists {
         LocalDateTime fromTs = from != null ? from.atStartOfDay() : null;
         LocalDateTime toTs = to != null ? to.plusDays(1).atStartOfDay() : null;
 
-
-
-        Page<Transaction> pageResult =
-                transactionRepository.searchByUserWithFilters(
-                        userId,
-                        fromTs,
-                        toTs,
-                        minAmount,
-                        maxAmount,
-                        pageable
-                );
+        Page<Transaction> pageResult = transactionRepository.searchByUserWithFilters(
+                userId,
+                fromTs,
+                toTs,
+                minAmount,
+                maxAmount,
+                pageable
+        );
 
         return pageResult.getContent()
                 .stream()
                 .map(this::toDtoTransactions)
                 .toList();
     }
+
     @Cacheable(
-            value = "transactions:all",
+            value = "banking:transactions:list",
             key = "'page:' + #page + ':size:' + #size",
-            unless = "#result == null"
+
+            sync = true
     )
-    public List<TransactionDto> getAllTransactionsCached(int page,int size
-
-    ) {
-
-
+    public List<TransactionDto> getAllTransactionsCached(int page, int size) {
         if (page < 0) page = 0;
         if (size <= 0) size = 20;
         if (size > 100) size = 100;
-        System.out.println("DB HIT -> getallTransactions : ");
+        System.out.println("DB HIT -> getAllTransactions : page=" + page);
 
         Pageable pageable = PageRequest.of(page, size, Sort.by("timestamp").descending());
-
-
-        Page<Transaction> pageResult =
-                transactionRepository.findAllByOrderByTimestampDesc(pageable);
-
+        Page<Transaction> pageResult = transactionRepository.findAllByOrderByTimestampDesc(pageable);
 
         return pageResult.getContent()
                 .stream()
                 .map(this::toDtoTransactions)
                 .toList();
     }
+
     @Cacheable(
-            value = "users:all",
+            value = "banking:users:list",
             key = "'page:' + #page + ':size:' + #size",
-            unless = "#result == null"
+
+            sync = true
     )
-    public List<UserResponseDto> getAllUserCached(int page, int size
-
-    ) {
-
-
+    public List<UserResponseDto> getAllUserCached(int page, int size) {
         if (page < 0) page = 0;
         if (size <= 0) size = 20;
         if (size > 100) size = 100;
-        System.out.println("DB HIT -> getallUsers: ");
+        System.out.println("DB HIT -> getAllUsers: page=" + page);
 
         Pageable pageable = PageRequest.of(page, size, Sort.by("id").descending());
-
-
-        Page<User> pageResult =userRepo.findAll(pageable);
-
-
+        Page<User> pageResult = userRepo.findAll(pageable);
 
         return pageResult.getContent()
                 .stream()
                 .map(this::toDtoUser)
                 .toList();
     }
+
     private UserResponseDto toDtoUser(User u) {
         return new UserResponseDto(
                 u.getId(),
                 u.getUsername(),
-               u.getFirstname(),
+                u.getFirstname(),
                 u.getLastname(),
                 u.getEmail(),
-
                 u.getMobile(),
                 u.getRole(),
                 u.getCreditScore(),
-                u.getUpdatedAt()
-
-
-
+                u.getUpdatedAt(),
+                u.isHasLoan(),
+                u.getLoanamount(),
+                u.getRemaining(),
+                u.getDueDate()
 
         );
     }
+
     private TransactionDto toDtoTransactions(Transaction t) {
         return new TransactionDto(
                 t.getId(),
@@ -271,6 +260,7 @@ public class CachedLists {
                 t.getTimestamp() != null ? t.getTimestamp().toString() : null
         );
     }
+
     public LoanApplicationResponseDto toDtoLoanApplications(LoanApplication a) {
         return new LoanApplicationResponseDto(
                 a.getId(),
@@ -285,6 +275,7 @@ public class CachedLists {
                 a.getNextDueDate()
         );
     }
+
     private LoanRepaymentResponseDto toDtoLoanRepayments(LoanRepayment t) {
         return new LoanRepaymentResponseDto(
                 t.getId(),
@@ -293,20 +284,30 @@ public class CachedLists {
                 t.getAmountPaid(),
                 t.getPaymentDate(),
                 t.getRemainingBalance()
-
         );
     }
+
     private BankAccountResponseDto toDtoAccounts(BankAccount b) {
         return new BankAccountResponseDto(
                 b.getId(),
-
                 b.getAccountNumber(),
                 b.getType(),
                 b.getBalance(),
                 b.getUser().getUsername(),
                 b.isBlocked(),
-
                 b.isVerified()
         );
+
+    }
+    private BuisnessLoggingResponseDto toDtoLogs(BuisnessLog b){
+
+               return new BuisnessLoggingResponseDto(
+                       b.getId(),
+                       b.getUsername(),
+                       b.getAction(),
+                       b.getDetails(),
+                       b.getTimestamp()
+
+               );
     }
 }

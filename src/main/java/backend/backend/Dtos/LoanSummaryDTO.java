@@ -1,9 +1,8 @@
 // LoanSummaryDTO.java
-package backend.backend.model;
+package backend.backend.Dtos;
 
 import lombok.AllArgsConstructor;
 import lombok.Data;
-import lombok.RequiredArgsConstructor;
 
 import java.time.LocalDateTime;
 

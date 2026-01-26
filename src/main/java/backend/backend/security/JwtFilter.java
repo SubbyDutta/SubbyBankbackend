@@ -51,10 +51,9 @@ public class JwtFilter extends OncePerRequestFilter {
                 String username = claims.getSubject();
                 String role = (String) claims.get("role");
 
-                // Load full UserDetails
+
                 UserDetails userDetails = userDetailsService.loadUserByUsername(username);
 
-                //  Override authorities with role from token
                 List<SimpleGrantedAuthority> authorities = List.of(new SimpleGrantedAuthority("ROLE_" + role));
 
                 UsernamePasswordAuthenticationToken authToken =

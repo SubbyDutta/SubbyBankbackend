@@ -20,12 +20,15 @@ public class PaymentController {
 
     private final RazorpayService paymentService;
 
+    //CREATE ORDER
     @PreAuthorize("hasRole('USER')")
     @PostMapping("/create-order")
     public ResponseEntity<?> createOrder(@RequestBody Map<String, Object> data) {
         return ResponseEntity.ok(paymentService.createOrder(data));
     }
 
+
+    //VERIFY ORDER
     @PreAuthorize("hasRole('USER')")
     @PostMapping("/verify")
     public ResponseEntity<?> verifyPayment(

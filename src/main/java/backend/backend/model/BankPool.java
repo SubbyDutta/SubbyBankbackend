@@ -12,6 +12,7 @@ public class BankPool {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
+
     private double balance=100000000;
 
 }

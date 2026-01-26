@@ -25,17 +25,15 @@ public class AuthController {
     private final UserService userService;
     private final JwtUtil jwtUtil;
     private final BankService bankService;
-    private final PasswordEncoder passwordEncoder;
-    private final PasswordResetTokenRepository tokenRepo;
-    private final JavaMailSender mailSender;
 
 
+ //HEALTHCHECK
     @GetMapping("/health")
     public String health() {
         return "OK";
     }
 
-
+  //SIGNUP
     @PostMapping("/signup")
     public ResponseEntity<String> signup(@RequestBody User user) {
         userService.registerUser(user);
@@ -43,6 +41,8 @@ public class AuthController {
     }
 
 
+
+    //LOGIN
     @PostMapping("/login")
     public TokenResponse login(@RequestBody AuthRequest request) {
         User user = userService.authenticate(request.getUsername(), request.getPassword());
@@ -51,12 +51,14 @@ public class AuthController {
         String token = jwtUtil.generateToken(user.getUsername(), user.getRole());
         return new TokenResponse(token, user.getRole());
     }
+
+
+
     @PreAuthorize("hasAuthority('USER')")
     @PostMapping("/create-account")
     public ResponseEntity<?> createBankAccount(@Valid @RequestBody AccountRequest request) {
 
             User user = userService.ifUserExists(request.getUsername());
-
             BankAccount account = bankService.createAccount(user, request.getAdhar(), request.getPan(), request.getType());
             return ResponseEntity.ok(account);
 
@@ -122,14 +124,7 @@ public class AuthController {
     }
 */
 
-    // DTOs
-    @Data
-    public static class AuthRequest {
-        private String username;
-        private String password;
 
-
-    }
 
     public static class TokenResponse {
         private final String token;

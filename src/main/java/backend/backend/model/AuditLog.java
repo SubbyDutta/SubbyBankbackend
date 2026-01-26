@@ -21,5 +21,5 @@ public class AuditLog {
     private int statusCode;
     private LocalDateTime timestamp;
 
-    // getters and setters
+
 }

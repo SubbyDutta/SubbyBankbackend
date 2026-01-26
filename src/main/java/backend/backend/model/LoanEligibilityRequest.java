@@ -21,12 +21,9 @@ public class LoanEligibilityRequest {
     private double amount_to_pay;
     private double balance;
     private double avg_transaction;
-
-
     private double maxamoount;
     private boolean eligible;
     private double probability;
-
     private boolean applied = false;
     @PrePersist
     public void prePersist() {

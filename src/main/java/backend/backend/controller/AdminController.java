@@ -1,12 +1,14 @@
 package backend.backend.controller;
 
 import backend.backend.Dtos.BankAccountResponseDto;
+import backend.backend.Dtos.BuisnessLoggingResponseDto;
+import backend.backend.Dtos.LoanApplicationResponseDto;
 import backend.backend.Dtos.UserResponseDto;
+import backend.backend.model.LoanApplication;
+import backend.backend.model.Stats;
 import backend.backend.model.User;
 import backend.backend.requests_response.*;
-import backend.backend.service.AccountService;
-import backend.backend.service.BankService;
-import backend.backend.service.UserService;
+import backend.backend.service.*;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -21,6 +23,9 @@ public class AdminController {
     private final  UserService userService;
     private final AccountService accountService;
     private final BankService bankService;
+    private final BuisnessLoggingService buisnessLoggingService;
+    private final LoanService loanService;
+    private final AppStats appStats;
 
    //GET ALL USERS
     @GetMapping("/users")
@@ -41,6 +46,7 @@ public class AdminController {
     }
 
 
+
   //UPDATE USER
     @PutMapping("/user/{id}")
     @PreAuthorize("hasRole('ADMIN')")
@@ -48,18 +54,40 @@ public class AdminController {
         return userService.updateUser(id, updated);
     }
 
-//DELETE USER
+
+ //DELETE USER
     @DeleteMapping("/user/{id}")
     @PreAuthorize("hasRole('ADMIN')")
     public String deleteUser(@PathVariable Long id) {
-
         userService.deleteUser(id);
-
         return "User deleted";
     }
+//LOGS  use this google antigravity
+@PreAuthorize("hasRole('ADMIN')")
+@GetMapping("/alllogs")
+public ResponseEntity<PagedResponse<BuisnessLoggingResponseDto>> getAllLogs(
+        @RequestParam(defaultValue = "0") int page,
+        @RequestParam(defaultValue = "20") int size
+) {
+    return ResponseEntity.ok(
+            buisnessLoggingService.getAllLogs(page, size)
+    );
+}
+////LOGS Filter  use this google antigravity
+    @PreAuthorize("hasRole('ADMIN')")
+    @GetMapping("/logs/action")
+    public ResponseEntity<PagedResponse<BuisnessLoggingResponseDto>> getLogsByAction(
+            @RequestParam("value") String action,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size
+    ) {
+        return ResponseEntity.ok(
+                buisnessLoggingService.getBuisnessLogsByAction(page, size, action)
+        );
+    }
+
 
 //TOGGLE BLOCK
-    /// need chagne
     @PatchMapping("/block/{id}")
     @PreAuthorize("hasRole('ADMIN')")
     public String toggleBlock(@PathVariable Long id) {
@@ -67,11 +95,12 @@ public class AdminController {
         return acc? "Account blocked" : "Account unblocked";
     }
 
+
+
 //GET BALANCE
     @GetMapping("/balance/{id}")
     @PreAuthorize("hasRole('ADMIN')")
     public double getBalance(@PathVariable Long id) {
-
         return bankService.getAccountByid(id).balance();
     }
 
@@ -79,29 +108,33 @@ public class AdminController {
 //GET ALL BANK ACCOUNTS
     @GetMapping("/bankaccounts")
     @PreAuthorize("hasRole('ADMIN')")
-    public PagedResponse<BankAccountResponseDto> getAllAccountss(
+    public PagedResponse<BankAccountResponseDto> getAllAccounts(
             @RequestParam(defaultValue = "0") Integer page,
             @RequestParam(defaultValue = "1") Integer size
     ) {
         return accountService.getAllAccountsPaged(page,size);
     }
-    //UPDATE USER
 
+
+
+    //UPDATE USER
     @PatchMapping("/balance/")
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<?> updateUserBalance(@RequestBody BalanceUpdateRequest request) {
         bankService.updateUserBalance(userService.getUserById(request.getUserId()).username(), request.getAmount());
-
         return ResponseEntity.ok("Balance updated to ₹" + request.getAmount());
     }
-//GET BANK ACCOUNT BY ID
 
+
+
+//GET BANK ACCOUNT BY ID
     @GetMapping("/accounts/{id}")
     @PreAuthorize("hasRole('ADMIN')")
     public BankAccountResponseDto getAccountById(@PathVariable Long id) {
         return bankService.getAccountByid(id);
-
     }
+
+
 
 //DELETE BANK ACCOUTN BY ID
     @DeleteMapping("/accounts/{id}")
@@ -110,6 +143,29 @@ public class AdminController {
       bankService.deleteAccount(id);
         return ResponseEntity.ok("Bank account deleted successfully with ID: " + id);
     }
+    //APPROVE LOAN
+    @PostMapping("/approve/{loanId}")
+    @PreAuthorize("hasRole('ADMIN')")
+    public LoanApplication approveLoan(@PathVariable Long loanId) {
+        return loanService.approveLoan(loanId);
+    }
 
-
+    //SEARCH LOAN APPLICATION USERNAME BY ADMIN
+    @PreAuthorize("hasRole('ADMIN')")
+    @GetMapping("/loans/search")
+    public PagedResponse<LoanApplicationResponseDto> searchLoans(
+            @RequestParam(required = false) String username,
+            @RequestParam(required = false) Double minAmount,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size
+    ) {
+        return loanService.searchLoans(username, minAmount, page, size);
+    }
+   //GET STATS
+    @PreAuthorize("hasRole('ADMIN')")
+    @GetMapping("/analytics/stats")
+    public Stats getStats()
+    {
+        return appStats.getStats();
+    }
 }

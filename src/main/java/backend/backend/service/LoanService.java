@@ -1,6 +1,6 @@
 package backend.backend.service;
 
-import backend.backend.Dtos.TransactionDto;
+import backend.backend.Dtos.LoanSummaryDTO;
 import backend.backend.Exception.ForbiddenException;
 import backend.backend.Exception.ResourceNotFoundException;
 import backend.backend.Exception.UnauthorizedException;
@@ -13,15 +13,9 @@ import backend.backend.requests_response.PagedResponse;
 import jakarta.annotation.PostConstruct;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.cache.annotation.Caching;
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.PageRequest;
-import org.springframework.data.domain.Pageable;
-import org.springframework.data.domain.Sort;
-import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
 
@@ -29,36 +23,33 @@ import java.time.LocalDateTime;
 import java.time.YearMonth;
 import java.util.List;
 import java.util.Map;
-import java.util.stream.Collectors;
 
 @RequiredArgsConstructor
 @Service
 public class LoanService {
     private static final int TENURE_MONTHS = 6;
-
     private final LoanEligibilityRequestRepository eligibilityRepo;
     private final BankPoolService bankPoolService;
     private final LoanApplicationRepository applicationRepo;
     private final BankAccountRepository bankRepo;
-
     private final RestTemplate restTemplate;
     private final UserRepository userRepository;
     private final TransactionRepository txRepo;
-
     private final TransactionService transactionService;
-
     private final BankService bankService;
     private final LoanMlProperties loanMlProperties;
     private final UserService userService;
-    private  String loanCheckUrl;
-   private final BuisnessLoggingService buisnessLoggingService;
-   private final IdempotencyRepository idempotencyRepository;
+    private String loanCheckUrl;
+    private final BuisnessLoggingService buisnessLoggingService;
+    private final IdempotencyRepository idempotencyRepository;
     private final CachedLists cachedLists;
+    private final LoanRepaymentRepository repaymentRepo;
 
     @PostConstruct
     public void init() {
         this.loanCheckUrl = loanMlProperties.geturl();
     }
+
     public LoanApplicationResponseDto toDto(LoanApplication a) {
         return new LoanApplicationResponseDto(
                 a.getId(),
@@ -73,15 +64,23 @@ public class LoanService {
                 a.getNextDueDate()
         );
     }
+    public List<LoanApplicationResponseDto> userLoans(String username)
+    {
+        List<LoanApplication> loans=applicationRepo.findByUsername(username);
+        return loans.stream()
+                .map(this::toDto)
+                .toList();
 
-    public LoanEligibilityRequest checkEligibility(String username, double income,  double requestedAmount) {
+    }
+
+
+    public LoanEligibilityRequest checkEligibility(String username, double income, double requestedAmount) {
         LoanEligibilityRequest req = new LoanEligibilityRequest();
         req.setUsername(username);
         req.setIncome(income);
-        req.setPan(bankRepo.findByUserUsername(username).orElseThrow(()->new ResourceNotFoundException("Not Found")).getPan());
-        req.setAdhar(bankRepo.findByUserUsername(username).orElseThrow(()->new ResourceNotFoundException("Not Found")).getAdhar());
-        req.setCreditScore(userRepository.findByUsername(username).orElseThrow(()->new ResourceNotFoundException("not found")).getCreditScore());
-
+        req.setPan(bankRepo.findByUserUsername(username).orElseThrow(() -> new ResourceNotFoundException("Not Found")).getPan());
+        req.setAdhar(bankRepo.findByUserUsername(username).orElseThrow(() -> new ResourceNotFoundException("Not Found")).getAdhar());
+        req.setCreditScore(userRepository.findByUsername(username).orElseThrow(() -> new ResourceNotFoundException("not found")).getCreditScore());
         req.setRequestedAmount(requestedAmount);
 
         User user = userRepository.findByUsername(username)
@@ -113,38 +112,34 @@ public class LoanService {
         Map<String, Object> response = restTemplate.postForObject(loanCheckUrl, payload, Map.class);
         req.setEligible((Boolean) response.get("eligible"));
         req.setProbability(((Number) response.get("probability")).doubleValue());
-        int amount_to_pay=0;
-        int rate=0;
+        int amount_to_pay = 0;
+        int rate = 0;
 
-        if(req.getCreditScore()>=750 )
-        {
-           rate= 10;
-        }else if(req.getCreditScore()>=700)
-        {
-            rate=15;
-        }else if(req.getCreditScore()>=650)
-        {
-            rate=20;
-        }else if(req.getCreditScore()>=500)
-        {
-            rate=25;
+        if (req.getCreditScore() >= 750) {
+            rate = 10;
+        } else if (req.getCreditScore() >= 700) {
+            rate = 15;
+        } else if (req.getCreditScore() >= 650) {
+            rate = 20;
+        } else if (req.getCreditScore() >= 500) {
+            rate = 25;
         }
 
-        amount_to_pay= (int) ((int) (requestedAmount*rate/100)+requestedAmount);
-       req.setAmount_to_pay(amount_to_pay);
-       buisnessLoggingService.log("ELIGIBILTY CHECK","BY "+username,"CHECKED ELIGINILTY WITH INCOME OF "+income);
+        amount_to_pay = (int) ((int) (requestedAmount * rate / 100) + requestedAmount);
+        req.setAmount_to_pay(amount_to_pay);
+        buisnessLoggingService.log("ELIGIBILTY CHECK", "BY " + username,
+                "CHECKED ELIGINILTY WITH INCOME OF " + income);
         return eligibilityRepo.save(req);
     }
-    @Caching(evict = {
-            @CacheEvict(value = "pendingapplications:all", allEntries = true),
-            @CacheEvict(value = "loanApplications:all", allEntries = true),
 
+    @Caching(evict = {
+            @CacheEvict(value = "banking:loans:pending", allEntries = true),
+            @CacheEvict(value = "banking:loans:list", allEntries = true)
     })
     public LoanApplication applyLoan(Long eligibilityId, String usernameFromToken) {
 
         LoanEligibilityRequest eligibility = eligibilityRepo.findById(eligibilityId)
                 .orElseThrow(() -> new ResourceNotFoundException("Eligibility not found"));
-
 
         if (!eligibility.getUsername().equals(usernameFromToken)) {
             throw new UnauthorizedException("Unauthorized to apply for this loan");
@@ -154,11 +149,9 @@ public class LoanService {
             throw new UnauthorizedException("User not eligible for this loan");
         }
 
-
         if (eligibility.getRequestedAmount() > eligibility.getMaxamoount()) {
             throw new ForbiddenException("Requested amount exceeds maximum allowed based on eligibility");
         }
-
 
         boolean hasActiveLoan = applicationRepo.findByUsername(eligibility.getUsername())
                 .stream()
@@ -177,20 +170,20 @@ public class LoanService {
         loan.setDue_amount(eligibility.getAmount_to_pay());
         loan.setStatus("PENDING");
         loan.setApproved(false);
-        buisnessLoggingService.log("APPLIED FOR LOAN",usernameFromToken," APPLIED FOR A LOAN OF "+loan.getAmount());
+        buisnessLoggingService.log("APPLIED FOR LOAN", usernameFromToken,
+                " APPLIED FOR A LOAN OF " + loan.getAmount());
         return applicationRepo.save(loan);
     }
 
     @Caching(evict = {
-            @CacheEvict(value = "pendingapplications:all", allEntries = true),
-            @CacheEvict(value = "loanApplications:all", allEntries = true),
-
-            @CacheEvict(value="balance", allEntries=true),
-            @CacheEvict(value="BankAccountResponseDto", allEntries=true),
-            @CacheEvict(value="UserApprovedLoan", allEntries = true,beforeInvocation = true),
-            @CacheEvict(value="repaylist",allEntries = true,beforeInvocation = true),
-            @CacheEvict(value = "transactions:all", allEntries = true),
-            @CacheEvict(value = "transactions:user", allEntries = true)
+            @CacheEvict(value = "banking:loans:pending", allEntries = true),
+            @CacheEvict(value = "banking:loans:list", allEntries = true),
+            @CacheEvict(value = "banking:balance", allEntries = true),
+            @CacheEvict(value = "banking:account:dto", allEntries = true),
+            @CacheEvict(value = "banking:loans:userApproved", allEntries = true),
+            @CacheEvict(value = "banking:loans:repayments", allEntries = true),
+            @CacheEvict(value = "banking:transactions:list", allEntries = true),
+            @CacheEvict(value = "banking:transactions:user", allEntries = true)
     })
     @Transactional
     public LoanApplication approveLoan(Long loanId) {
@@ -204,13 +197,17 @@ public class LoanService {
         loan.setApproved(true);
         loan.setStatus("APPROVED");
         loan.setApprovedAt(LocalDateTime.now());
-
         loan.setMonthlyEmi(loan.getDue_amount() / 6);
         loan.setNextDueDate(LocalDateTime.now().plusMonths(1));
         applicationRepo.save(loan);
+        User user =userRepository.findByUsername(loan.getUsername()).orElseThrow(()->new ResourceNotFoundException("user not found"));
+        user.setHasLoan(true);
+        user.setLoanamount(loan.getAmount());
+        user.setRemaining(loan.getDue_amount());
+        user.setDueDate(loan.getNextDueDate());
+        userService.updateUser(user.getId(),user);
         bankPoolService.deduct(loan.getAmount());
 
-        // Credit money to user account
         BankAccount account = bankRepo.findByUserUsername(loan.getUsername())
                 .orElseThrow(() -> new ResourceNotFoundException("Bank account not found"));
         account.setBalance(account.getBalance() + loan.getAmount());
@@ -219,8 +216,6 @@ public class LoanService {
                 account.getBalance() + loan.getAmount()
         );
 
-
-        // Record transaction
         Transaction tx = new Transaction();
         tx.setSenderAccount("BANK");
         tx.setReceiverAccount(account.getAccountNumber());
@@ -233,37 +228,26 @@ public class LoanService {
         tx.setIsForeign(0);
         transactionService.checkFraud(tx);
 
-        // Create repayment record
-        LoanRepayment r=new LoanRepayment();
+        LoanRepayment r = new LoanRepayment();
         r.setLoanId(loanId);
         r.setUsername(loan.getUsername());
         r.setAmountPaid(0);
         r.setRemainingBalance(loan.getDue_amount());
-
         r.setPaymentDate(LocalDateTime.now());
         repaymentRepo.save(r);
 
-        //deduct from bank
-        BankPool bank=  new BankPool();
-
-
-      buisnessLoggingService.log("LOAN APPROVAL",r.getUsername()," APPROVED OF LOAN OF "+r.getRemainingBalance());
+        buisnessLoggingService.log("LOAN APPROVAL", r.getUsername(),
+                " APPROVED OF LOAN OF " + r.getRemainingBalance());
         return loan;
     }
 
-
-    public PagedResponse<LoanApplicationResponseDto> getPendingLoans(
-            int page,
-            int size
-
-    ) {
-
+    public PagedResponse<LoanApplicationResponseDto> getPendingLoans(int page, int size) {
         if (page < 0) page = 0;
         if (size <= 0) size = 20;
         if (size > 100) size = 100;
-        List<LoanApplicationResponseDto> content=cachedLists.getUserPendingLoanCached(page, size);
-        long totalElements =
-                applicationRepo.count();
+
+        List<LoanApplicationResponseDto> content = cachedLists.getUserPendingLoanCached(page, size);
+        long totalElements = applicationRepo.count();
         int totalPages = (int) Math.ceil((double) totalElements / size);
 
         return new PagedResponse<>(
@@ -275,7 +259,6 @@ public class LoanService {
                 page + 1 >= totalPages
         );
     }
-
 
     public PagedResponse<LoanApplicationResponseDto> searchLoans(
             String username,
@@ -284,10 +267,9 @@ public class LoanService {
             int size
     ) {
         List<LoanApplicationResponseDto> content =
-                cachedLists.getUserLoansCached(username,minAmount, page, size);
+                cachedLists.getUserLoansCached(username, minAmount, page, size);
         User user = userService.ifUserExists(username);
-        long totalElements =
-               applicationRepo.count();
+        long totalElements = applicationRepo.count();
         int totalPages = (int) Math.ceil((double) totalElements / size);
 
         return new PagedResponse<>(
@@ -300,20 +282,18 @@ public class LoanService {
         );
     }
 
-
-    private final LoanRepaymentRepository repaymentRepo;
     @Caching(evict = {
-
-            @CacheEvict(value = "score", allEntries = true,beforeInvocation = true),
-            @CacheEvict(value="BankAccountResponseDto",allEntries = true,beforeInvocation = true),
-            @CacheEvict(value="UserApprovedLoan", allEntries = true,beforeInvocation = true),
-            @CacheEvict(value="repaylist",allEntries = true,beforeInvocation = true),
-            @CacheEvict(value = "transactions:all", allEntries = true),
-            @CacheEvict(value = "transactions:user", allEntries = true)
-
+            @CacheEvict(value = "banking:credit:score", allEntries = true),
+            @CacheEvict(value = "banking:account:dto", allEntries = true),
+            @CacheEvict(value = "banking:loans:userApproved", allEntries = true),
+            @CacheEvict(value = "banking:loans:repayments", allEntries = true),
+            @CacheEvict(value = "banking:transactions:list", allEntries = true),
+            @CacheEvict(value = "banking:transactions:user", allEntries = true),
+            @CacheEvict(value = "banking:loans:userrepaylist", allEntries = true)
     })
     @Transactional
-    public LoanRepayment repayLoan(Long loanId, double amount,String key) {
+    public LoanRepayment repayLoan(Long loanId, double amount, String key) {
+
         if (idempotencyRepository.existsById(key)) {
             return null;
         }
@@ -328,15 +308,13 @@ public class LoanService {
         User user = userRepository.findByUsername(loan.getUsername())
                 .orElseThrow(() -> new ResourceNotFoundException("User not found"));
 
+     
         double remaining = loan.getDue_amount();
 
-        List<LoanRepayment> pastPayments = repaymentRepo.findByLoanIdOrderByPaymentDateDesc(loanId);
-        double totalPaid = pastPayments.stream().mapToDouble(LoanRepayment::getAmountPaid).sum();
-        remaining = remaining - totalPaid;
-        if(amount<loan.getAmount()/6)
-        {
+        if (amount < loan.getAmount() / 6) {
             throw new ForbiddenException("cant pay less");
         }
+
         if (amount > remaining) {
             throw new ForbiddenException("You are trying to pay more than owed");
         }
@@ -348,27 +326,22 @@ public class LoanService {
             throw new ForbiddenException("Insufficient balance");
         }
 
-        // Deduct from balance
         account.setBalance(account.getBalance() - amount);
-        bankService.updateUserBalance(account.getUser().getUsername(),account.getBalance());
-
+        bankService.updateUserBalance(account.getUser().getUsername(), account.getBalance());
 
         LocalDateTime now = LocalDateTime.now();
+        double newRemaining = remaining - amount;
 
-        // Full repayment within first <10 days → no credit boost
-        if (remaining - amount <= 0 && loan.getApprovedAt().plusDays(10).isBefore(now)) {
+        if (newRemaining <= 0 && loan.getApprovedAt().plusDays(10).isBefore(now)) {
             user.setCreditScore(Math.min(900, user.getCreditScore() + 20));
-        }
-        // Regular on-time EMI
-        else if (now.isBefore(loan.getNextDueDate()) || now.isEqual(loan.getNextDueDate())) {
+        } else if (now.isBefore(loan.getNextDueDate()) || now.isEqual(loan.getNextDueDate())) {
             user.setCreditScore(Math.min(900, user.getCreditScore() + 6));
-        }
-        // Late payment
-        else {
+        } else {
             user.setCreditScore(Math.max(300, user.getCreditScore() - 12));
         }
-        userService.updateUser(account.getUser().getId().longValue(),user);
-        // Record transaction
+
+        userService.updateUser(account.getUser().getId().longValue(), user);
+
         Transaction tx = new Transaction();
         tx.setSenderAccount(account.getAccountNumber());
         tx.setReceiverAccount("BANK");
@@ -382,58 +355,70 @@ public class LoanService {
         tx.setUserId(account.getUser().getId().intValue());
 
         transactionService.checkFraud(tx);
-        IdempotencyKey idempotencyKey=new IdempotencyKey();
+
+        IdempotencyKey idempotencyKey = new IdempotencyKey();
         idempotencyKey.setKey(key);
         idempotencyKey.setCreatedAt(LocalDateTime.now());
-        // Record repayment
+
         LoanRepayment repayment = new LoanRepayment();
         repayment.setLoanId(loanId);
         repayment.setUsername(loan.getUsername());
         repayment.setAmountPaid(amount);
         repayment.setPaymentDate(now);
-        repayment.setRemainingBalance(remaining - amount);
+        repayment.setRemainingBalance(newRemaining);
 
         repaymentRepo.save(repayment);
         bankPoolService.add(amount);
 
-
-        // Update next due date and months remaining
-        if (remaining - amount <= 0) {
+        if (newRemaining <= 0) {
             loan.setStatus("PAID");
             loan.setMonthsRemaining(0);
+            user.setHasLoan(false);
+            user.setLoanamount(0);
+            user.setRemaining(0);
+            repaymentRepo.deleteAllByUsername(user.getUsername());
         } else {
             loan.setMonthsRemaining(loan.getMonthsRemaining() - 1);
             loan.setNextDueDate(loan.getNextDueDate().plusMonths(1));
+            user.setLoanamount(loan.getAmount());
+            user.setRemaining(newRemaining);
+            user.setDueDate(loan.getNextDueDate());
         }
-        buisnessLoggingService.log("REPAID",account.getAccountNumber(),"PAID "+amount+" REMAINING "+repayment.getRemainingBalance());
+
+
+        loan.setDue_amount(newRemaining);
+
+        userService.updateUser(account.getUser().getId().longValue(), user);
         applicationRepo.save(loan);
+        idempotencyRepository.save(idempotencyKey);
+
+        buisnessLoggingService.log("REPAID", account.getAccountNumber(),
+                "PAID " + amount + " REMAINING " + newRemaining);
 
         return repayment;
     }
+
     @Cacheable(
-            value = "UserApprovedLoan",
+            value = "banking:loans:userApproved",
             key = "#username + ':' + #status",
             unless = "#result == null"
     )
-  public List<LoanApplication> getUserApprovedLoans(String username,String status)
-  {
-      System.out.println("DB HIT USERAPPROVEDLOANS");
-      List<LoanApplication> loan=applicationRepo.findByUsernameAndStatus(username,status);
-      return loan;
-  }
-
+    public List<LoanApplication> getUserApprovedLoans(String username, String status) {
+        System.out.println("DB HIT USERAPPROVEDLOANS: username=" + username + " status=" + status);
+        List<LoanApplication> loan = applicationRepo.findByUsernameAndStatus(username, status);
+        return loan;
+    }
 
 
     public LoanSummaryDTO getLoanSummary(Long loanId) {
-        System.out.println("DB HIT -> getLoanSummary : ");
+        System.out.println("DB HIT -> getLoanSummary : loanId=" + loanId);
 
         LoanApplication loan = applicationRepo.findById(loanId)
                 .orElseThrow(() -> new ResourceNotFoundException("Loan not found"));
 
         List<LoanRepayment> payments = repaymentRepo.findByLoanIdOrderByPaymentDateDesc(loanId);
         double paid = payments.stream().mapToDouble(LoanRepayment::getAmountPaid).sum();
-        double remaining = loan.getDue_amount() - paid;
-
+        double remaining = loan.getDue_amount();
 
         return new LoanSummaryDTO(
                 loan.getId(),
@@ -442,47 +427,59 @@ public class LoanService {
                 loan.getMonthlyEmi(),
                 loan.getNextDueDate(),
                 loan.getMonthsRemaining()
-
         );
     }
 
-public PagedResponse<LoanRepaymentResponseDto> repayList(
-        int page,int size
-){
-    if (page < 0) page = 0;
-    if (size <= 0) size = 20;
-    if (size > 100) size = 100;
-        System.out.println("DB HIT REPAYLIST");
-    List<LoanRepaymentResponseDto> content =
-            cachedLists.getAllRepayList(page,size);
+    public PagedResponse<LoanRepaymentResponseDto> repayList(int page, int size) {
+        if (page < 0) page = 0;
+        if (size <= 0) size = 20;
+        if (size > 100) size = 100;
 
-    long totalElements = repaymentRepo.count();
-    int totalPages = (int) Math.ceil((double) totalElements / size);
+        System.out.println("DB HIT REPAYLIST: page=" + page);
+        List<LoanRepaymentResponseDto> content = cachedLists.getAllRepayList(page, size);
 
-    return new PagedResponse<>(
-            content,
-            page,
-            size,
-            totalElements,
-            totalPages,
-            page + 1 >= totalPages
-    );
-}
+        long totalElements = repaymentRepo.count();
+        int totalPages = (int) Math.ceil((double) totalElements / size);
 
+        return new PagedResponse<>(
+                content,
+                page,
+                size,
+                totalElements,
+                totalPages,
+                page + 1 >= totalPages
+        );
+    }
+    @Cacheable(
+            value = "banking:loans:userrepaylist",
+            key = "#username",
+            unless = "#result == null"
+    )
+    public List<LoanRepayment> userrepay(String username)
+    {
+        List<LoanRepayment> loan;
+        if (username != null && !username.isBlank()) {
+             loan =repaymentRepo.findByUsernameOrderByPaymentDateDesc(username);
+        }else{
+            throw new ResourceNotFoundException("Loan not found for this user");
+
+        }
+
+
+        return loan;
+
+    }
 
     private LoanRepaymentResponseDto toDto(LoanRepayment t) {
         return new LoanRepaymentResponseDto(
-             t.getId(),
+                t.getId(),
                 t.getLoanId(),
                 t.getUsername(),
                 t.getAmountPaid(),
                 t.getPaymentDate(),
                 t.getRemainingBalance()
-
         );
     }
-
-
 
     private double totalPaid(Long loanId) {
         return repaymentRepo.findByLoanIdOrderByPaymentDateDesc(loanId)
@@ -494,18 +491,16 @@ public PagedResponse<LoanRepaymentResponseDto> repayList(
     private int monthsBetween(LocalDateTime start, LocalDateTime end) {
         if (end.isBefore(start)) return 0;
         int months = (end.getYear() - start.getYear()) * 12 + (end.getMonthValue() - start.getMonthValue());
-
         if (end.getDayOfMonth() < start.getDayOfMonth()) months = Math.max(months - 1, 0);
         return months;
     }
 
     private LocalDateTime dueDateForInstallment(LocalDateTime approvedAt, int installmentNo) {
-
         LocalDateTime base = approvedAt.plusMonths(installmentNo);
-
         YearMonth ym = YearMonth.from(base);
         int dom = Math.min(approvedAt.getDayOfMonth(), ym.lengthOfMonth());
-        return LocalDateTime.of(ym.getYear(), ym.getMonth(), dom, approvedAt.getHour(), approvedAt.getMinute(), approvedAt.getSecond());
+        return LocalDateTime.of(ym.getYear(), ym.getMonth(), dom, approvedAt.getHour(),
+                approvedAt.getMinute(), approvedAt.getSecond());
     }
 
     private int clampCredit(int v) {
@@ -513,9 +508,4 @@ public PagedResponse<LoanRepaymentResponseDto> repayList(
         if (v > 900) return 900;
         return v;
     }
-
-
-
-
 }
-

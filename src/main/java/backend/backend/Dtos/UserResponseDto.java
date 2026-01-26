@@ -15,7 +15,6 @@ public record UserResponseDto(
         String firstname,
         @NotNull
         String lastname,
-
         @NotNull
         String email,
         @NotNull
@@ -24,6 +23,11 @@ public record UserResponseDto(
         String role,
         @NotNull
         int creditScore,
-        LocalDateTime updatedAt
+        LocalDateTime updatedAt,
+        boolean hasLoan,
+        double loanAmount,
+        double remaining,
+        LocalDateTime dueDate
+
 ) {
 }

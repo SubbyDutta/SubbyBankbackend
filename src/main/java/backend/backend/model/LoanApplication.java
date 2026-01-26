@@ -20,11 +20,8 @@ public class LoanApplication {
     private boolean approved = false;
     private String status;
     private int monthsRemaining = 6; // fixed tenure of 6 months
-
     private double monthlyEmi;
-
     private LocalDateTime approvedAt;
-
     private LocalDateTime nextDueDate;
 }
 

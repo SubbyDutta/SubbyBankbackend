@@ -20,7 +20,6 @@ public interface  TransactionRepository extends JpaRepository<Transaction, Long>
 
     Page<Transaction> findByUserIdOrderByTimestampDesc(int userId, Pageable pageable);
 
-
     Page<Transaction> findAllByOrderByTimestampDesc(Pageable pageable);
 
     List<Transaction> findByUserId(int userId);
@@ -49,7 +48,7 @@ public interface  TransactionRepository extends JpaRepository<Transaction, Long>
             @Param("maxAmount") Double maxAmount
     );
 
-    //  Advanced: paginated + filtered search for a user
+
     @Query("""
    SELECT t
    FROM Transaction t

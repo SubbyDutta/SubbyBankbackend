@@ -14,14 +14,11 @@ import lombok.Data;
 
         @OneToOne
         private User user;
-
         @Column(unique = true, nullable = false)
         private String accountNumber;
         private String type;
         private double balance;
-
         private boolean isBlocked;
-
         private String adhar;
         private String pan;
         private boolean isVerified;

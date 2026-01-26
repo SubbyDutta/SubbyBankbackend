@@ -40,8 +40,8 @@ public class AdminInitializer {
 
                 admin.setPassword(passwordEncoder.encode(password));
                 admin.setRole("ADMIN");
-                admin.setEmail("admin@gmail.com");
-                admin.setMobile("8017798434");
+                admin.setEmail("adminsmartbank@gmail.com");
+                admin.setMobile("8017798437");
                 userRepository.save(admin);
                 System.out.println("Admin user created: admin / admin123");
             }

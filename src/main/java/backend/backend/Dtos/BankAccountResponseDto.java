@@ -7,8 +7,6 @@ public record BankAccountResponseDto(
         @NotNull
         @Positive
         Long id,
-
-
         @NotNull
         @Positive
         String accountNumber,
@@ -17,11 +15,9 @@ public record BankAccountResponseDto(
         @NotNull
         @Positive
         double balance,
-       @NotNull
-         String username,
-         boolean isBlocked,
-
-
+        @NotNull
+        String username,
+        boolean isBlocked,
         boolean isVerified
 
 

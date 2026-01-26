@@ -5,17 +5,14 @@ import backend.backend.model.BankPool;
 import backend.backend.repository.BankPoolRepository;
 import jakarta.annotation.PostConstruct;
 import jakarta.transaction.Transactional;
-import org.springframework.cache.annotation.Cacheable;
+import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
+@RequiredArgsConstructor
 @Service
 public class BankPoolService {
 
     private final BankPoolRepository poolRepo;
-
-    public BankPoolService(BankPoolRepository poolRepo) {
-        this.poolRepo = poolRepo;
-    }
 
     @PostConstruct
     public void initPool() {
@@ -26,9 +23,11 @@ public class BankPoolService {
         }
     }
 
+
     public BankPool getPool() {
         return poolRepo.findAll().get(0);
     }
+
 
     @Transactional
     public void deduct(double amount) {
@@ -36,7 +35,6 @@ public class BankPoolService {
         if (p.getBalance() < amount) {
             throw new ForbiddenException("Bank does not have enough funds to issue this loan.");
         }
-
         p.setBalance(p.getBalance() - amount);
         poolRepo.save(p);
     }
