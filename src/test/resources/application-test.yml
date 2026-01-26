@@ -17,9 +17,27 @@ spring:
   sql:
     init:
       mode: never
+  cache:
+    caffeine
 security:
   jwt:
     secret: test-secret-test-secret-test-secret-test
     issuer: test-issuer
     access-token-minutes: 10
     refresh-token-days: 1
+razorpay:
+  key-id: "rzp_test_RVPxvjAjcRvhXL"
+  secret: "QKwbfAzto7W4s4P4nZz4UkFi"
+
+fraud:
+  url: "http://localhost:5000/predict"
+
+gemini:
+  key: "AIzaSyA1fnXZgAIBfZCBf0j9F8ooQxu_XhEgNmY"
+loan:
+  url: "http://localhost:5001/predictloan"
+admin:
+  username: "ADMIN123"
+  password: "123456"
+frontend:
+  url: "http://localhost:3000/"
