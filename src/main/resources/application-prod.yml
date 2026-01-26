@@ -20,6 +20,19 @@ spring:
     host: ${REDIS_HOST}
     port: ${REDIS_PORT}
 
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      show-details: always
+  health:
+    db:
+      enabled: true
+    redis:
+      enabled: true
 
 razorpay:
   key-id: ${RAZORPAY_KEY_ID}
@@ -46,6 +59,8 @@ security:
     issuer: yourbank
     access-token-minutes: 30
     refresh-token-days: 30
+  actuator:
+    enabled: false
 
 logging:
   level:
