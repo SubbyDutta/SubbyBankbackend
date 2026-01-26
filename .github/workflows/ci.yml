@@ -31,7 +31,7 @@ jobs:
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
       - name: Build and push Docker image
-        working-directory: SubbyBankbackend
+
         run: |
           IMAGE=${{ secrets.DOCKERHUB_USERNAME }}/banking-backend
           TAG=$(git rev-parse --short HEAD)
