@@ -20,8 +20,8 @@ jobs:
           java-version: 21
           cache: maven
 
-      - name: Run tests
-        run: mvn clean test -Dspring.profiles.active=test
+      - name: build and test
+        run: mvn clean package
 
 
       - name: Login to DockerHub
