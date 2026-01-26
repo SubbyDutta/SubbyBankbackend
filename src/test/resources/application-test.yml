@@ -17,3 +17,9 @@ spring:
   sql:
     init:
       mode: never
+security:
+  jwt:
+    secret: test-secret-test-secret-test-secret-test
+    issuer: test-issuer
+    access-token-minutes: 10
+    refresh-token-days: 1
