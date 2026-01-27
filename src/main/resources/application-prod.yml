@@ -35,6 +35,8 @@ management:
       enabled: true
     redis:
       enabled: true
+    mail:
+      enabled: false
 
 razorpay:
   key-id: ${RAZORPAY_KEY_ID}
