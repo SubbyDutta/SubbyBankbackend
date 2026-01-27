@@ -58,6 +58,8 @@ public class SecurityConfig {
                         .requestMatchers("/api/loan/**").authenticated()
                         .requestMatchers("/api/repay/**").authenticated()
                         .requestMatchers("/api/auth/create-account").authenticated()
+                        .requestMatchers("/actuator/health").permitAll()
+                        .requestMatchers("/actuator/prometheus").permitAll()
 
 
                         .anyRequest().authenticated()
