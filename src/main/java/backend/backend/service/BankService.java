@@ -37,7 +37,7 @@ public class BankService {
     private final IdempotencyRepository idempotencyRepo;
     private final TransactionService transactionService;
     private final BuisnessLoggingService buisnessLoggingService;
-    private final PiiConverter piiConverter;
+
 
 
     @CacheEvict(value = "banking:accounts:list", allEntries = true)
@@ -46,10 +46,10 @@ public class BankService {
         if (bankRepo.findByUser(user).isPresent())
             throw new RuntimeException("Account already exists for this user");
 
-        if (bankRepo.existsByPan(piiConverter.convertToDatabaseColumn(pan)))
+        if (bankRepo.existsByPan(CryptoUtils.encrypt(pan)))
             throw new RuntimeException("PAN already linked to another account");
 
-        if (bankRepo.existsByAdhar(piiConverter.convertToDatabaseColumn(adhar)))
+        if (bankRepo.existsByAdhar(CryptoUtils.encrypt(adhar)))
             throw new RuntimeException("Aadhaar already linked to another account");
 
         BankAccount acc = new BankAccount();
