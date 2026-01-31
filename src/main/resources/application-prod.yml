@@ -54,6 +54,9 @@ frontend:
 gemini:
   key: ${GEMINI}
 
+adharpankey:
+  key: ${MYSECRETKEY}
+  fixed: ${FIXED}
 admin:
   username: ${ADMINUSER}
   password: ${ADMINPASSWORD}

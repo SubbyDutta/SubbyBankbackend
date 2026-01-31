@@ -3,6 +3,8 @@ package backend.backend.service;
 import backend.backend.Exception.ForbiddenException;
 import backend.backend.Exception.ResourceNotFoundException;
 import backend.backend.Exception.UnauthorizedException;
+import backend.backend.configuration.CryptoUtils;
+import backend.backend.configuration.PiiConverter;
 import backend.backend.model.BankAccount;
 import backend.backend.model.IdempotencyKey;
 import backend.backend.model.Transaction;
@@ -35,6 +37,7 @@ public class BankService {
     private final IdempotencyRepository idempotencyRepo;
     private final TransactionService transactionService;
     private final BuisnessLoggingService buisnessLoggingService;
+    private final PiiConverter piiConverter;
 
 
     @CacheEvict(value = "banking:accounts:list", allEntries = true)
@@ -43,10 +46,10 @@ public class BankService {
         if (bankRepo.findByUser(user).isPresent())
             throw new RuntimeException("Account already exists for this user");
 
-        if (bankRepo.existsByPan(pan))
+        if (bankRepo.existsByPan(piiConverter.convertToDatabaseColumn(pan)))
             throw new RuntimeException("PAN already linked to another account");
 
-        if (bankRepo.existsByAdhar(adhar))
+        if (bankRepo.existsByAdhar(piiConverter.convertToDatabaseColumn(adhar)))
             throw new RuntimeException("Aadhaar already linked to another account");
 
         BankAccount acc = new BankAccount();

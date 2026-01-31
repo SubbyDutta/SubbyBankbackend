@@ -1,5 +1,6 @@
 package backend.backend.model;
 
+import backend.backend.configuration.PiiConverter;
 import jakarta.persistence.*;
 import lombok.Data;
 
@@ -19,7 +20,9 @@ import lombok.Data;
         private String type;
         private double balance;
         private boolean isBlocked;
+        @Convert(converter = PiiConverter.class)
         private String adhar;
+        @Convert(converter = PiiConverter.class)
         private String pan;
         private boolean isVerified;
     }

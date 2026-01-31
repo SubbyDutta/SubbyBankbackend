@@ -1,5 +1,6 @@
 package backend.backend.service;
 
+import backend.backend.Exception.ResourceNotFoundException;
 import backend.backend.configuration.FraudMlProperties;
 import backend.backend.model.BankAccount;
 import backend.backend.model.Transaction;
@@ -95,10 +96,8 @@ public class TransactionService {
             saveTransaction(transaction);
             return transaction;
         } catch (Exception e) {
-            transaction.setIs_fraud(0);
-            transaction.setFraud_probability(0.00);
-            saveTransaction(transaction);
-            return transaction;
+            throw new ResourceNotFoundException("Fraud detection offline. Transfer aborted to protect funds.");
+
         }
     }
 
