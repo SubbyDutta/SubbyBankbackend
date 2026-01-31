@@ -139,7 +139,9 @@ public class UserService {
             @CacheEvict(value = "banking:credit:score", allEntries = true),
             @CacheEvict(value = "banking:users:list", allEntries = true),
             @CacheEvict(value = "banking:accounts:list", allEntries = true),
-            @CacheEvict(value = "banking:user:exists", allEntries = true)
+            @CacheEvict(value = "banking:user:exists", allEntries = true),
+            @CacheEvict(value = "banking:account:byNumber", allEntries = true)
+
     })
     @Transactional
     public void deleteUser(Long id) {

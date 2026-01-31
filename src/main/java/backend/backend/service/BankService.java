@@ -174,7 +174,9 @@ public class BankService {
     @Caching(evict = {
             @CacheEvict(value = "banking:balance", allEntries = true),
             @CacheEvict(value = "banking:account:dto", allEntries = true),
-            @CacheEvict(value = "banking:accounts:list", allEntries = true)
+            @CacheEvict(value = "banking:accounts:list", allEntries = true),
+            @CacheEvict(value = "banking:account:byNumber", allEntries = true)
+
     })
     public RuntimeException deleteAccount(Long id) {
         if (!bankRepo.existsById(id)) {
