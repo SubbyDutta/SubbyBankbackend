@@ -46,10 +46,10 @@ public class BankService {
         if (bankRepo.findByUser(user).isPresent())
             throw new RuntimeException("Account already exists for this user");
 
-        if (bankRepo.existsByPan(CryptoUtils.encrypt(pan)))
+        if (bankRepo.existsByPan(pan))
             throw new RuntimeException("PAN already linked to another account");
 
-        if (bankRepo.existsByAdhar(CryptoUtils.encrypt(adhar)))
+        if (bankRepo.existsByAdhar(adhar))
             throw new RuntimeException("Aadhaar already linked to another account");
 
         BankAccount acc = new BankAccount();
