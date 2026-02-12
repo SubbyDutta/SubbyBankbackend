@@ -3,7 +3,7 @@
 This is the backend service for **SubbyBank**, a robust banking platform featuring AI-driven fraud detection, loan management, and secure financial transactions. Built with **Spring Boot 3** and **Java 21**, it leverages modern technologies to ensure high performance and reliability.
 
 ## 🚀 Key Features
-
+ 
 -   **Secure Authentication**: JWT-based authentication with Access and Refresh tokens.
 -   **Account Management**: Comprehensive user profiles, Aadhar and PAN verification.
 -   **Payments Integration**: Seamless payments and withdrawals powered by **Razorpay**.
@@ -15,6 +15,7 @@ This is the backend service for **SubbyBank**, a robust banking platform featuri
 -   **Security**: Rate limiting (Bucket4j), PII encryption, and password hashing.
 -   **High Performance**: Multi-layer caching with **Redis** and **Caffeine**.
 -   **Observability**: Monitoring and metrics via **Spring Boot Actuator** and **Prometheus**.
+-   **CI/CD**: Uses Github Actions for ci/cd pipeline/
 
 ## 🛠️ Tech Stack
 
